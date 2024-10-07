@@ -1,0 +1,20 @@
+# Change log
+
+First version of data analysis report: 07.12.2022
+
+## 12.12.2022: 
+
+-  Heatmaps in section 12: remove the condition "total expression != 0", show all genes from the list of genes of interest (TLR9 now available).
+
+-  Add differential gene expression analysis of DC1 vs DC2 in LV, PV and all LV + PV samples.
+
+-  generate one more version for the report: replace UMAP by TSNE in all dimension reduction results.
+
+-  Minor modification on figure format, added interactive volcano plot for the DEA of DC1 vs DC2. 
+
+
+## 09.01.2023:
+
+- Save DE genes of DC1 vs DC2 in all cases to files, use as input to the pathway analysis. 
+
+- Add pathway analysis for DE genes DC1 vs DC2 in all cases. New reports .html added. 

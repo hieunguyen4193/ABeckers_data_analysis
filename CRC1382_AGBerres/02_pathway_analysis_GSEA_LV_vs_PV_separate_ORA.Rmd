@@ -1,0 +1,735 @@
+
+---
+title: "Pathway enrichment analysis (all LV samples vs all PV samples)"
+author:
+  - "trnguyen@ukaachen.de"
+date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    number_sections: true
+    df_print: paged
+    toc: true
+    toc_float:
+      toc_collapsed: false
+    toc_depth: 3
+    theme: lumen
+---
+
+  
+```{css zoom-lib-src, echo = FALSE}
+script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
+```
+
+```{js zoom-jquery, echo = FALSE}
+$(document).ready(function() {
+  $('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+  // onClick function for all plots (img's)
+    $('img:not(.zoomImg)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+      $('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+    });
+    // onClick function for zoomImg
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').css({opacity: '0', width: '0%'}); 
+    });
+  });
+```
+
+<style type="text/css">
+    div.datatables { height: auto !important;}
+</style>
+
+In this analysis, we perform the Gene Set Enrichment Analysis (GSEA) for the Differentially expressed (DE) genes found from the analysis of LV20, 21 and PV20, 21 samples. 
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.width=20, fig.height=12}
+##### Preparation
+gc()
+rm(list = ls())
+
+set.seed(42)
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+source("00_import_libraries.R")
+source("00_helper_functions.R")
+library("org.Hs.eg.db")
+path.to.main.input <- "/media/hieunguyen/CRC1382H/CRC1382/outdir/AGBerres/220311_Berres_MiedIII_scCITEseq"
+
+path.to.main.output <- file.path(path.to.main.input, "data_analysis")
+dir.create(path.to.main.output, showWarnings = FALSE)
+
+path.to.01.output <- file.path(path.to.main.output, "01_output")
+dir.create(path.to.01.output, showWarnings = FALSE)
+
+s.obj <- readRDS(file.path(path.to.01.output, "s_obj.annotated.integrated.tsne.rds"))
+
+all.LV.vs.all.PV <- readRDS(file.path(path.to.01.output, "DE_markers_all_LV_vs_all_PV.tsne.rds"))
+
+# BiocManager::install("clusterProfiler")
+library("clusterProfiler")
+
+
+for (cell.type in names(all.LV.vs.all.PV)){
+  if ("avg_log2FC" %in% colnames(all.LV.vs.all.PV[[cell.type]])){
+    all.LV.vs.all.PV[[cell.type]] <- all.LV.vs.all.PV[[cell.type]] %>% arrange(desc(avg_log2FC))    
+  }
+}
+
+all.gene.sets <- all.LV.vs.all.PV
+
+
+path.to.02.output <- file.path(path.to.main.output, "02_output", "LV_vs_PV_samples")
+dir.create(path.to.02.output, showWarnings = FALSE)
+
+dir.create(file.path(path.to.02.output, "enrichment_plots"), showWarnings = FALSE)
+```
+
+# Notes
+## Differential gene expression
+- **Positive** `avg_log2FC` indicates that the gene is highly expressed in `LV` samples. 
+
+- **Negative** `avg_log2FC` indicates that the gene is highly expressed in `PV` samples.
+
+## Over-representation analysis (ORA)
+
+- `ONTOLOGY`: BP, MF, and CC represent Biological Process, Molecular Function, and Cellular Component groups of GO. In this analysis, we use all these three subontologies.
+
+- There are two p-values calculuated by the ORA: `pvalue` and `p.adjust`, we will use only the `p.adjust` and `q.value` to decide if a pathway is enriched or not. Method of False discovery rate: Benjamin - Hochberg. Thresholds are: `p.value <= 0.05` and `p.adjust <= 0.05` and `q.value <= 0.05`. 
+
+- Explanation on the output of ORA summary table:
+
+  - `GeneRatio`: `GeneRatio = k/n`, where `k` is the number of genes within your input gene list (genes of interest) which are annotated to the gene set and `n` is the size of the list of genes of interest. 
+  
+  - `BgRatio`: `BgRatio = M/N`, where `M` is the number of genes within the hypergeometric distribution (the distribution we used to calculate the p-value) that are annotated (either directly or indirectly) to the genes of interest. `N` is the total number of genes in the background distribution (by default, it is all the genes that have annotation). 
+  
+
+- In the ORA, our gene set of interest is the **significantly differentially expressed genes** found from previous analysis. 
+
+## Gene set enrichment analysis (GSEA)
+
+- All genes will be used in the GSEA. Genes are ranked based on their average log2 Fold-change, which was found from the DE analysis. 
+
+- GSEA aggregates the per gene statistics across genes within a gene set, therefore making it possible to detect situations where all genes in a predefined set change in a small but coordinated way.
+
+- Given apriori defined set of gene S, the goal of GSEA is to determine whether the members of S are randomly distributed throughout the ranked gene list (L) or primarily found at the top or bottom.
+
+- There are three key elements of the GSEA method:
+
+  - Calculation of an Enrichment Score.
+  
+  - Estimation of Significance Level of ES.
+  
+  - Adjustment for Multiple Hypothesis Testing.
+
+For all significant pathways, we generate a bar-plot showing all Normalized Enrichment Scores.
+
+
+**CLICK ON THE IMAGE TO ZOOM-IN AND ONE MORE CLICK TO GO BACK TO THE ORIGINAL**
+
+**If the table is empty, that means; no significant pathways were found**
+
+**Updated note:**
+
+`set.seed(42)` and set `seed = TRUE` in the functions of `clusterProfiler` to ensure reproducibility. 
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+
+## Full list of genes ranked by `avg_log2FC` {.tabset}
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]]
+  tmp.full.list <- tmp.full.list %>% mutate_if(is.numeric, round, 6) %>% rownames_to_column("Gene") 
+  print( htmltools::tagList(datatable(tmp.full.list, extensions = 'Buttons',
+                filter = "top",
+                options = list(dom = 'Blfrtip',
+                               buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                               lengthMenu = list(c(10,25,50,-1),
+                                                 c(10,25,50,"All")),
+                               columnDefs = list(list(
+                                 targets = "_all",
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data != null && data.length > 100 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                   "}")
+                               ))
+                ))))
+   cat("\n \n")
+}
+```
+
+## Genes of interest {.tabset}
+
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+
+List of significantly differentially expressed genes between all LV samples vs all PV samples in each cell type
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]] %>% subset(p_val_adj <= 0.05)
+  tmp.full.list <- tmp.full.list %>% mutate_if(is.numeric, round, 6) %>% rownames_to_column("Gene")
+  print( htmltools::tagList(datatable(tmp.full.list, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+     cat("\n \n")
+}
+```
+
+## Genes of interest: Up in LV {.tabset}
+List of significantly differentially expressed genes between all LV samples vs all PV samples in each cell type
+
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]] %>% subset(p_val_adj <= 0.05 & avg_log2FC >= 0)
+  tmp.full.list <- tmp.full.list %>% mutate_if(is.numeric, round, 6) %>% rownames_to_column("Gene")
+  print( htmltools::tagList(datatable(tmp.full.list, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+     cat("\n \n")
+}
+```
+## Genes of interest: Up in PV {.tabset}
+List of significantly differentially expressed genes between all LV samples vs all PV samples in each cell type
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]] %>% subset(p_val_adj <= 0.05 & avg_log2FC < 0)
+  tmp.full.list <- tmp.full.list %>% mutate_if(is.numeric, round, 6) %>% rownames_to_column("Gene")
+  print( htmltools::tagList(datatable(tmp.full.list, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+     cat("\n \n")
+}
+```
+## UMAP, clusters, cell type annotation
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+DimPlot(object = s.obj, reduction = "INTE_UMAP", label = TRUE, label.box = TRUE, repel = TRUE, label.size = 8)
+```
+
+# Main analysis
+
+## GO-ORA Summary tables {.tabset}
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]]
+  input.gene.list <- row.names(subset(tmp.full.list, tmp.full.list$p_val_adj <= 0.05)) 
+  
+  if (length(input.gene.list != 0)){
+    ora.GO <- enrichGO(gene = input.gene.list,
+                      OrgDb = org.Hs.eg.db,
+                      # universe = rownames(tmp.full.list),
+                      ont = "ALL",
+                      pvalueCutoff = 0.05,
+                      qvalueCutoff = 0.05,
+                      readable = TRUE,
+                      keyType = "SYMBOL",
+                      pAdjustMethod = "BH")
+  
+    ora.GO.sum.res <- as.data.frame(ora.GO) 
+  } else {
+    ora.GO.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+  }
+  
+  ora.GO.sum.res <- ora.GO.sum.res %>% mutate_if(is.numeric, round, 6) 
+  print( htmltools::tagList(datatable(ora.GO.sum.res, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+     cat("\n \n")
+}
+
+```
+
+## GO-ORA for up-in-LV genes only,Summary tables {.tabset}
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]]
+  input.gene.list <- row.names(subset(tmp.full.list, tmp.full.list$p_val_adj <= 0.05 & avg_log2FC >= 0)) 
+  
+  if (length(input.gene.list != 0)){
+    ora.GO <- enrichGO(gene = input.gene.list,
+                      OrgDb = org.Hs.eg.db,
+                      # universe = rownames(tmp.full.list),
+                      ont = "ALL",
+                      pvalueCutoff = 0.05,
+                      qvalueCutoff = 0.05,
+                      readable = TRUE,
+                      keyType = "SYMBOL",
+                      pAdjustMethod = "BH")
+  
+    ora.GO.sum.res <- as.data.frame(ora.GO) 
+  } else {
+    ora.GO.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+  }
+  
+  ora.GO.sum.res <- ora.GO.sum.res %>% mutate_if(is.numeric, round, 6) 
+  print( htmltools::tagList(datatable(ora.GO.sum.res, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+     cat("\n \n")
+}
+
+```
+
+
+## GO-ORA for up-in-PV genes only,Summary tables {.tabset}
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]]
+  input.gene.list <- row.names(subset(tmp.full.list, tmp.full.list$p_val_adj <= 0.05 & avg_log2FC < 0)) 
+  
+  if (length(input.gene.list != 0)){
+    ora.GO <- enrichGO(gene = input.gene.list,
+                      OrgDb = org.Hs.eg.db,
+                      # universe = rownames(tmp.full.list),
+                      ont = "ALL",
+                      pvalueCutoff = 0.05,
+                      qvalueCutoff = 0.05,
+                      readable = TRUE,
+                      keyType = "SYMBOL",
+                      pAdjustMethod = "BH")
+  
+    ora.GO.sum.res <- as.data.frame(ora.GO) 
+  } else {
+    ora.GO.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+  }
+  
+  ora.GO.sum.res <- ora.GO.sum.res %>% mutate_if(is.numeric, round, 6) 
+  print( htmltools::tagList(datatable(ora.GO.sum.res, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+     cat("\n \n")
+}
+
+```
+
+## KEGG-ORA Summary tables {.tabset}
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]]
+  input.gene.list <- row.names(subset(tmp.full.list, tmp.full.list$p_val_adj <= 0.05)) 
+  
+  input.gene.list <- bitr(input.gene.list, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db")
+  
+  if (length(input.gene.list != 0)){
+    ora.KEGG <-  enrichKEGG(gene = input.gene.list$ENTREZID,
+                   organism     = 'hsa',
+                   pvalueCutoff = 0.05, 
+                   qvalueCutoff = 0.05)
+    ora.KEGG.sum.res <- as.data.frame(ora.KEGG)
+      if (nrow(ora.KEGG.sum.res) != 0){
+        ora.KEGG.sum.res <- ora.KEGG.sum.res %>%
+        rowwise() %>%
+        mutate(geneSymbol = paste(to_vec(for (item in str_split(geneID, "/")[[1]]) subset(input.gene.list, input.gene.list$ENTREZID == item)$SYMBOL), collapse = ", "))  
+    } else {
+      ora.KEGG.sum.res <- data.frame(data = c("No enriched set found"))
+    }
+  } else {
+  ora.KEGG.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+}
+  ora.KEGG.sum.res <- ora.KEGG.sum.res %>% mutate_if(is.numeric, round, 6) 
+  print( htmltools::tagList(datatable(ora.KEGG.sum.res, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+    cat("\n \n")
+  
+}
+```
+
+## KEGG-ORA for up-in-LV genes only, Summary tables {.tabset}
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]]
+  input.gene.list <- row.names(subset(tmp.full.list, tmp.full.list$p_val_adj <= 0.05 & avg_log2FC >= 0)) 
+  
+  input.gene.list <- bitr(input.gene.list, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db")
+  
+  if (length(input.gene.list != 0)){
+    ora.KEGG <-  enrichKEGG(gene = input.gene.list$ENTREZID,
+                   organism     = 'hsa',
+                   pvalueCutoff = 0.05, 
+                   qvalueCutoff = 0.05)
+  
+    ora.KEGG.sum.res <- as.data.frame(ora.KEGG) %>%
+      rowwise() %>%
+      mutate(geneSymbol = paste(to_vec(for (item in str_split(geneID, "/")[[1]]) subset(input.gene.list, input.gene.list$ENTREZID == item)$SYMBOL), collapse = ", "))
+  } else {
+    ora.KEGG.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+  }
+  
+  ora.KEGG.sum.res <- ora.KEGG.sum.res %>% mutate_if(is.numeric, round, 6) 
+  print( htmltools::tagList(datatable(ora.KEGG.sum.res, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+    cat("\n \n")
+  
+}
+```
+
+
+## KEGG-ORA for up-in-PV genes only, Summary tables {.tabset}
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]]
+  input.gene.list <- row.names(subset(tmp.full.list, tmp.full.list$p_val_adj <= 0.05 & avg_log2FC < 0)) 
+  if (length(input.gene.list) == 1 & "MT-ND3" %in% input.gene.list){
+    input.gene.list <- data.frame(data = "MT-ND3")
+    colnames(input.gene.list) <- "SYMBOL"
+    input.gene.list$ENTREZID <- c("4537")
+  } else {
+    input.gene.list <- bitr(input.gene.list, fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db")    
+  }
+  
+  if (length(input.gene.list != 0)){
+    ora.KEGG <-  enrichKEGG(gene = input.gene.list$ENTREZID,
+                   organism     = 'hsa',
+                   pvalueCutoff = 0.05, 
+                   qvalueCutoff = 0.05)
+    
+    ora.KEGG.sum.res <- as.data.frame(ora.KEGG) 
+    if (nrow(ora.KEGG.sum.res) != 0){
+        ora.KEGG.sum.res <- ora.KEGG.sum.res %>%
+      rowwise() %>%
+      mutate(geneSymbol = paste(to_vec(for (item in str_split(geneID, "/")[[1]]) subset(input.gene.list, input.gene.list$ENTREZID == item)$SYMBOL), collapse = ", "))    
+    } else {
+      ora.KEGG.sum.res <- data.frame(data = c("No pathways found"))
+    }
+  
+  } else {
+    ora.KEGG.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+  }
+  
+  ora.KEGG.sum.res <- ora.KEGG.sum.res %>% mutate_if(is.numeric, round, 6) 
+  print( htmltools::tagList(datatable(ora.KEGG.sum.res, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+    cat("\n \n")
+  
+}
+```
+
+## GO-GSEA Summary tables 
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+go.gsea <- hash()
+all.GSEA.GO.objects <- hash()
+```
+
+### Summary tables {.tabset}
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]] %>% arrange(desc(avg_log2FC))
+  input.gene.list <- tmp.full.list$avg_log2FC
+  names(input.gene.list) <- row.names(tmp.full.list)
+  
+  if (length(input.gene.list != 0)){
+    GSEA.GO <- gseGO(geneList = input.gene.list,
+                OrgD = org.Hs.eg.db,
+                ont = "ALL",
+                minGSSize = 100,
+                maxGSSize = 500,
+                pvalueCutoff = 0.05,
+                verbose = TRUE,
+                keyType = "SYMBOL", seed = TRUE)
+    all.GSEA.GO.objects[[cell.type]] <- GSEA.GO
+    GSEA.GO.sum.res <- as.data.frame(GSEA.GO) 
+  } else {
+    GSEA.GO.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+  }
+  
+  GSEA.GO.sum.res %>% mutate_if(is.numeric, round, 6) %>% create_dt()
+  go.gsea[[cell.type]] <- GSEA.GO.sum.res  
+  print( htmltools::tagList(datatable(GSEA.GO.sum.res, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+    cat("\n \n")
+}
+
+```
+
+### Summary plots {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  if (nrow(go.gsea[[cell.type]] != 0)){
+    cat(sprintf("#### %s \n", cell.type))
+    plot.df <- go.gsea[[cell.type]] %>% subset(select = c(Description, NES)) %>% arrange(desc(NES))
+    p <- ggplot(data = plot.df, aes(y = reorder(Description, NES), x = NES)) + geom_bar(stat = "identity")    
+    print(p)
+    cat("\n \n")
+  }
+}
+
+```
+
+
+## KEGG-GSEA Summary tables 
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+kegg.gsea <- hash()
+all.GSEA.KEGG.objects <- hash()
+```
+
+### Summary tables {.tabset}
+```{r echo=FALSE, include=FALSE}
+all.LV.vs.all.PV[["B-cell"]] %>% create_dt()
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  cat(paste("\n\n### ", cell.type, "##\n"))
+  tmp.full.list <- all.LV.vs.all.PV[[cell.type]] %>% arrange(desc(avg_log2FC))
+  convertdf <- bitr(row.names(tmp.full.list), fromType="SYMBOL", toType="ENTREZID", OrgDb="org.Hs.eg.db")
+  input.gene.list <- tmp.full.list$avg_log2FC
+  names(input.gene.list) <- convertdf$ENTREZID
+  
+  if (length(input.gene.list != 0)){
+    GSEA.KEGG <- gseKEGG(geneList = input.gene.list,
+                organism = "hsa",
+                minGSSize = 100,
+                maxGSSize = 500,
+                pvalueCutoff = 0.05,
+                verbose = FALSE, seed = TRUE)
+    all.GSEA.KEGG.objects[[cell.type]] <- GSEA.KEGG
+    GSEA.KEGG.sum.res <- as.data.frame(GSEA.KEGG)
+    if (nrow(GSEA.KEGG.sum.res) != 0){
+      GSEA.KEGG.sum.res <- GSEA.KEGG.sum.res %>%
+      rowwise() %>%
+      mutate(core_enrichment = paste(to_vec(for (item in str_split(core_enrichment, "/")[[1]]) subset(convertdf, convertdf$ENTREZID == item)$SYMBOL), collapse = ", "))
+    } else {
+      GSEA.KEGG.sum.res <- data.frame(data = c("No enriched pathway found"))
+    }
+    
+  } else {
+    GSEA.KEGG.sum.res <- data.frame(data = c("No DE genes to conduct ORA"))
+  }
+  
+  GSEA.KEGG.sum.res %>% mutate_if(is.numeric, round, 6) %>% create_dt()
+  kegg.gsea[[cell.type]] <- GSEA.KEGG.sum.res
+  
+  print( htmltools::tagList(datatable(GSEA.KEGG.sum.res, extensions = 'Buttons',
+                  filter = "top",
+                  options = list(dom = 'Blfrtip',
+                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                 lengthMenu = list(c(10,25,50,-1),
+                                                   c(10,25,50,"All")),
+                                 columnDefs = list(list(
+                                   targets = "_all",
+                                   render = JS(
+                                     "function(data, type, row, meta) {",
+                                     "return type === 'display' && data != null && data.length > 100 ?",
+                                     "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                     "}")
+                                 ))
+                  ))))
+    cat("\n \n")
+}
+```
+
+### Summary plots {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cell.type in names(all.LV.vs.all.PV)){
+  if ("data" %in% colnames(kegg.gsea[[cell.type]]) == FALSE){
+    cat(sprintf("#### %s \n", cell.type))
+    plot.df <- kegg.gsea[[cell.type]] %>% subset(select = c(Description, NES)) %>% arrange(desc(NES))
+    p <- ggplot(data = plot.df, aes(y = reorder(Description, NES), x = NES)) + geom_bar(stat = "identity")    
+    print(p)
+    cat("\n \n")
+  }
+}
+
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+#####----------------------------------------------------------------------#####
+##### SAVE ENRICHMENT PLOTS TO FILES 
+#####----------------------------------------------------------------------#####
+
+for (case in names(all.GSEA.GO.objects)){
+  if (dim(all.GSEA.GO.objects[[case]])[[1]] != 0 ){
+  path.to.save.enrichmentplot <- file.path(path.to.02.output, "enrichment_plots", "GSEA_GO", case)
+  dir.create(path.to.save.enrichmentplot, showWarnings = FALSE)
+  tmp <- all.GSEA.GO.objects[[case]] 
+  for (i in seq(nrow(tmp))){
+    savename <- sprintf("[%s]_%s.png", case, tmp$Description[i])
+    p <- gseaplot(tmp, geneSetID = i, title = sprintf("Pathway: %s, \n NES = %s", tmp$Description[i], round(tmp$NES[i], 3)))
+    ggsave(plot = p, device = "png", dpi = 300, path = file.path(path.to.save.enrichmentplot), filename = savename)
+  }}
+}
+  
+for (case in names(all.GSEA.KEGG.objects)){
+  if (dim(all.GSEA.KEGG.objects[[case]])[[1]] != 0 ){
+  path.to.save.enrichmentplot <- file.path(path.to.02.output, "enrichment_plots", "GSEA_KEGG", case)
+  dir.create(path.to.save.enrichmentplot, showWarnings = FALSE)
+  tmp <- all.GSEA.KEGG.objects[[case]] 
+  for (i in seq(nrow(tmp))){
+    savename <- sprintf("[%s]_%s.png", case, tmp$Description[i])
+    p <- gseaplot(tmp, geneSetID = i, title = sprintf("Pathway: %s, \n NES = %s", tmp$Description[i], round(tmp$NES[i], 3)))
+    ggsave(plot = p, device = "png", dpi = 300, path = file.path(path.to.save.enrichmentplot), filename = savename)
+  }}
+}
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+```
