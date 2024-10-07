@@ -1,0 +1,103 @@
+---
+title: "Analysis for all 6 samples LV, PV"
+author:
+  - "trnguyen@ukaachen.de"
+date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    keep_md: no
+    df_print: paged
+    toc: true
+    toc_float:
+      toc_collapsed: false
+    toc_depth: 3
+    number_sections: true
+    theme: lumen
+params:
+  run: NA
+  sample.id: NA
+---
+
+
+```{css zoom-lib-src, echo = FALSE}
+script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
+```
+
+```{js zoom-jquery, echo = FALSE}
+ $(document).ready(function() {
+    $('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+    // onClick function for all plots (img's)
+    $('img:not(.zoomImg)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+      $('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+    });
+    // onClick function for zoomImg
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').css({opacity: '0', width: '0%'}); 
+    });
+  });
+```
+
+<style type="text/css">
+    div.datatables { height: auto !important;}
+</style>
+
+
+**Note on the .html report: Click on the image to zoom-in and one more click to go back to the original**
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=18}
+##### clean up #####
+gc()
+rm(list = ls())
+
+path.to.project.src <- "/home/hieunguyen/CRC1382/src_2023/CRC1382_AGBerres"
+
+source(file.path(path.to.project.src, "00_import_libraries.R"))
+source(file.path(path.to.project.src, "00_helper_functions.R"))
+
+path.to.src <- "/home/hieunguyen/CRC1382/src_2023/src_pipeline/scRNA_GEX_pipeline/processes_src"
+source(file.path(path.to.src, "s8_integration_and_clustering.R"))
+
+#####----------------------------------------------------------------------#####
+# CONFIGURATIONS AND PREPRATIONS
+#####----------------------------------------------------------------------#####
+outdir <- "/home/hieunguyen/CRC1382/outdir"
+PROJECT <- "ABeckers_231205"
+
+path.to.main.input <- file.path(outdir, PROJECT)
+s.obj <- readRDS(file.path(path.to.main.input, "s8_output", sprintf("%s.output.s8.rds", PROJECT)))
+s.obj <- subset(s.obj, Doublet_classifications == "Singlet")
+
+path.to.main.output <- file.path(path.to.main.input, "data_analysis")
+
+path.to.01.output <- file.path(path.to.main.output, "01_output")
+path.to.03.output <- file.path(path.to.main.output, "03_output")
+path.to.04.output <- file.path(path.to.main.output, "04_output")
+dir.create(path.to.04.output, showWarnings = FALSE, recursive = TRUE)
+s.obj <- readRDS(file.path(path.to.03.output, "s8_output", "merge_all_6_samples_test_function.output.s8.rds"))
+```
+
+# Dimension reduction with TSNE
+
+## TSNE: all clusters 
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=12}
+DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE) + 
+  ggtitle(sprintf("TSNE: All clusters")) +
+  theme(axis.text = element_text(size=20, face = "bold"),
+        axis.title = element_text(size=20, face = "bold"), 
+        title = element_text(size = 20, face = "bold"))
+```
+
+## TSNE: all samples
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=12}
+DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE, group.by = "name") + 
+  ggtitle(sprintf("TSNE Sample: All samples after integrating")) +
+  theme(axis.text = element_text(size=20, face = "bold"),
+        axis.title = element_text(size=20, face = "bold"), 
+        title = element_text(size = 20, face = "bold"))
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=12}
+```
+

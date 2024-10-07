@@ -1,0 +1,9 @@
+[gene-expression],,,,
+reference,/home/uk104163/references/build-GRCh38/GRCh38,,,
+expect-cells,1000,,,
+[feature],,,,
+reference,/hpcwork/uk104163/ABeckers/EB220311_feature_ref.csv,,,
+[libraries],,,,
+fastq_id,fastqs,lanes,feature_types,subsample_rate
+Sample_3,/hpcwork/uk104163/raw_data/231205_Beckers_Berres_MedIII_fastq/compressed_tars/data/fastq/231205_A01742_0179_AHNWLNDRX3/mkfastq/outs/fastq_path/HNWLNDRX3/Sample_3,,gene expression,
+Sample_3s,/hpcwork/uk104163/raw_data/231205_Beckers_Berres_MedIII_fastq/compressed_tars/data/fastq/231205_A01742_0179_AHNWLNDRX3/mkfastq/outs/fastq_path/HNWLNDRX3/Sample_3s,,Antibody Capture,

@@ -1,0 +1,313 @@
+---
+title: "Integrate old and new datasets"
+author:
+  - "trnguyen@ukaachen.de"
+date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    keep_md: no
+    df_print: paged
+    toc: true
+    toc_float:
+      toc_collapsed: false
+    toc_depth: 3
+    number_sections: true
+    theme: lumen
+params:
+  run: NA
+  sample.id: NA
+---
+
+
+```{css zoom-lib-src, echo = FALSE}
+script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
+```
+
+```{js zoom-jquery, echo = FALSE}
+ $(document).ready(function() {
+    $('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+    // onClick function for all plots (img's)
+    $('img:not(.zoomImg)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+      $('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+    });
+    // onClick function for zoomImg
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').css({opacity: '0', width: '0%'}); 
+    });
+  });
+```
+
+<style type="text/css">
+    div.datatables { height: auto !important;}
+</style>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=14}
+##### clean up #####
+gc()
+rm(list = ls())
+
+path.to.project.src <- "/home/hieunguyen/CRC1382/src_2023/CRC1382_AGBerres"
+
+library(ggpubr)
+source(file.path(path.to.project.src, "00_import_libraries.R"))
+source(file.path(path.to.project.src, "00_helper_functions.R"))
+
+path.to.src <- "/home/hieunguyen/CRC1382/src_2023/src_pipeline/scRNA_GEX_pipeline/processes_src"
+source(file.path(path.to.src, "s8_integration_and_clustering.R"))
+
+#####----------------------------------------------------------------------#####
+# CONFIGURATIONS AND PREPRATIONS
+#####----------------------------------------------------------------------#####
+outdir <- "/home/hieunguyen/CRC1382/outdir"
+PROJECT <- "ABeckers_231205"
+
+path.to.main.input <- file.path(outdir, PROJECT)
+
+path.to.main.output <- file.path(path.to.main.input, "data_analysis")
+path.to.01.output <- file.path(path.to.main.output, "01_output")
+path.to.02.output <- file.path(path.to.main.output, "02_output")
+dir.create(path.to.02.output, showWarnings = FALSE, recursive = TRUE)
+
+s.obj.new <- readRDS(file.path(path.to.01.output, "Sample_PV73_LV73.rds"))
+s.obj.old <- readRDS(file.path("/media/hieunguyen/HD0/outdir/CRC1382/AGBerres/220311_Berres_MiedIII_scCITEseq/data_analysis/01_output/s_obj.annotated.integrated.tsne.rds"))
+```
+
+# UMAP of 2 datasets
+
+## New dataset
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+DimPlot(object = s.obj.new, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, repel = TRUE)
+```
+
+## Previous dataset
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+DimPlot(object = s.obj.old, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, repel = TRUE)
+```
+
+# Integration of the two datasets
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+num.PCA <- 30
+num.PC.used.in.UMAP <- 30
+num.PC.used.in.Clustering <- 30
+num.dim.integration <- 30
+num.dim.cluster <- 30
+cluster.resolution <- 0.5
+chosen.seed <- 42
+if (file.exists(file.path(path.to.02.output, "merge_all_6_samples.RNA_assay.rds")) == FALSE){
+  s.obj <- merge(x = s.obj.old, 
+                 y = s.obj.new,
+                 merge.data = FALSE)
+
+  chosen.assay <- "RNA"
+  DefaultAssay(s.obj) <- chosen.assay
+  
+  s.obj <- NormalizeData(s.obj) # ---> use Log Normalized
+  s.obj <- FindVariableFeatures(s.obj, selection.method = "vst")
+  s.obj <- ScaleData(s.obj, features = rownames(s.obj))
+  
+  s.obj <- RunPCA(s.obj, npcs = num.PCA, verbose = FALSE, reduction.name=sprintf("%s_PCA", chosen.assay))
+  s.obj <- RunUMAP(s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PCA, 
+                             reduction.name=sprintf("%s_UMAP", chosen.assay), seed.use = chosen.seed)
+  s.obj <- RunTSNE(s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PCA, 
+                             reduction.name=sprintf("%s_TSNE", chosen.assay), seed.use = chosen.seed)
+  
+  s.obj <- FindNeighbors(s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PC.used.in.Clustering)
+  
+  s.obj <- FindClusters(s.obj, resolution = cluster.resolution, random.seed = chosen.seed)
+  
+  saveRDS(object = s.obj, file = file.path(path.to.02.output, "merge_all_6_samples.RNA_assay.rds"))  
+  print("Finished saving the file")
+  write.csv(data.frame(data = c("finished saving the object to disk")), file.path(path.to.02.output, "CHECK_merge_all_6_samples.RNA_assay.rds.csv"))
+} else {
+  s.obj <- readRDS(file.path(path.to.02.output, "merge_all_6_samples.RNA_assay.rds"))
+}
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+source("/home/hieunguyen/CRC1382/src_2023/src_pipeline/scRNA_GEX_pipeline/processes_src/s8_integration_and_clustering.R")
+if (file.exists(file.path(path.to.02.output, "s8_output", "merge_all_6_samples_test_function.output.s8.rds")) == FALSE){
+  s.obj <- s8.integration.and.clustering(s.obj = s.obj, 
+                           path.to.output = path.to.02.output, 
+                           save.RDS.s8 = TRUE,
+                           PROJECT = "merge_all_6_samples_test_function", 
+                           num.dim.integration = num.dim.integration,
+                           num.PCA = num.PCA,
+                           num.PC.used.in.UMAP = num.PC.used.in.UMAP,
+                           num.PC.used.in.Clustering = num.PC.used.in.Clustering,
+                           cluster.resolution = cluster.resolution,
+                           my_random_seed = 42,
+                           umap.method = "uwot",
+                           genes.to.not.run.PCA = NULL,
+                           inte_pca_reduction_name = "INTE_PCA", 
+                           inte_umap_reduction_name = "INTE_UMAP",
+                           with.TSNE = TRUE,
+                           k.filter = 200)  
+} else {
+  s.obj <- readRDS(file.path(path.to.02.output, "s8_output", "merge_all_6_samples_test_function.output.s8.rds"))
+}
+
+```
+
+## UMAP: after integration
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+DimPlot(object = s.obj, reduction = "INTE_TSNE", group.by = "name", label = TRUE, label.box = TRUE, repel = TRUE)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c("nCount_RNA", "nFeature_RNA", "percent.mt", "percent.ribo", "log10GenesPerUMI"), ncol = 2) 
+p
+```
+
+# Difference between 2 batches of data
+
+## Old batch vs new batch
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+meta.data <- s.obj@meta.data %>%
+  rownames_to_column("barcode") %>%
+  mutate(check.group = ifelse(name %in% c("LV20", "LV21", "PV20", "PV21"), "old_data", "new_data")) %>%
+  mutate(check.sample = sprintf("%s_%s", check.group, stage)) %>%
+  column_to_rownames("barcode")
+
+meta.data <- meta.data[row.names(s.obj@meta.data),]
+
+s.obj <- AddMetaData(object = s.obj, metadata = meta.data$check.group, col.name = "check.group")
+s.obj <- AddMetaData(object = s.obj, metadata = meta.data$check.sample, col.name = "check.sample")
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+DimPlot(object = s.obj, reduction = "INTE_TSNE", group.by = "check.group", label = TRUE, label.box = TRUE, repel = TRUE)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+DimPlot(object = s.obj, reduction = "INTE_TSNE", group.by = "check.sample", label = TRUE, label.box = TRUE, repel = TRUE)
+```
+
+## Comparison of QC metrics and differentially expressed gene between 2 batches
+
+### QC metrics {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+meta.data <- s.obj@meta.data %>% rownames_to_column("barcode")
+for (metric.to.plot in c("percent.mt", "percent.ribo", "nFeature_RNA", "nCount_RNA", 
+                         "AmbientRNA", "log10GenesPerUMI")){
+  cat(sprintf("#### %s \n", metric.to.plot))
+  p <- meta.data %>% ggplot(aes_string(x = "check.group", y = metric.to.plot, fill = "check.group")) + 
+    geom_boxplot() + theme_pubr() + 
+  stat_compare_means(method = "t.test", show.legend = TRUE, size = 12)  
+  print(p)
+  cat("\n \n")
+}
+
+```
+
+### Gene expression: All "old" samples vs all "new" samples
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+s.obj <- FindVariableFeatures(s.obj, assay = "RNA")
+var.features <- VariableFeatures(s.obj)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+if (file.exists(file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.filtered.rds")) == FALSE){
+  old.new.markers <- FindMarkers(object = s.obj, group.by = "check.group", ident.1 = "old_data", ident.2 = "new_data", assay = "RNA", test.use = "wilcox")
+  saveRDS(old.new.markers, file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.raw.rds"))
+  old.new.markers <- subset(old.new.markers, old.new.markers$p_val_adj <= 0.05)
+  saveRDS(old.new.markers, file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.filtered.rds"))  
+} else {
+  old.new.markers <- readRDS(file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.filtered.rds"))
+}
+
+old.new.markers <- old.new.markers %>% 
+  rownames_to_column("Gene") %>%
+  rowwise() %>%
+  mutate(abs_avgLog2FC = abs(avg_log2FC)) %>%
+  arrange(desc(abs_avgLog2FC)) %>%
+  mutate(used_in_TSNE = ifelse(Gene %in% var.features, "yes", "no")) %>%
+  mutate(gene_only_in_old_batch = ifelse(pct.1 >= 0.25 & pct.2 == 0, "yes", "no")) %>%
+  mutate(gene_only_in_new_batch = ifelse(pct.1 == 0 & pct.2 >= 0.25, "yes", "no"))
+```
+
+#### Table
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+old.new.markers %>% create_dt()
+```
+
+#### T-SNE plot
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=20, fig.width=28}
+DefaultAssay(s.obj) <- "RNA"
+p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = head(old.new.markers, 12)$Gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red") 
+print(p)
+```
+
+
+### Gene expression:"Old" LV samples vs "new" LV samples
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+if (file.exists(file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.LV_only.filtered.rds")) == FALSE){
+  old.new.markers.LV <- FindMarkers(object = s.obj, group.by = "check.sample", ident.1 = "old_data_LV", ident.2 = "new_data_LV", assay = "RNA", test.use = "wilcox")
+  saveRDS(old.new.markers.LV, file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.LV_only.raw.rds"))
+  old.new.markers.LV <- subset(old.new.markers.LV, old.new.markers.LV$p_val_adj <= 0.05)
+  saveRDS(old.new.markers.LV, file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.LV_only.filtered.rds"))  
+} else {
+  old.new.markers.LV <- readRDS(file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.LV_only.filtered.rds"))
+}
+old.new.markers.LV <- old.new.markers.LV %>% 
+  rownames_to_column("Gene") %>%
+  rowwise() %>%
+  mutate(abs_avgLog2FC = abs(avg_log2FC)) %>%
+  arrange(desc(abs_avgLog2FC)) %>%
+  mutate(used_in_TSNE = ifelse(Gene %in% var.features, "yes", "no")) %>%
+  mutate(gene_only_in_old_batch = ifelse(pct.1 >= 0.25 & pct.2 == 0, "yes", "no")) %>%
+  mutate(gene_only_in_new_batch = ifelse(pct.1 == 0 & pct.2 >= 0.25, "yes", "no"))
+```
+
+#### Table
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+old.new.markers.LV %>% create_dt()
+```
+
+#### T-SNE plot
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=20, fig.width=28}
+DefaultAssay(s.obj) <- "RNA"
+p <- FeaturePlot(object = subset(s.obj, stage == "LV"), reduction = "INTE_TSNE", features = head(old.new.markers.LV, 12)$Gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red") 
+print(p)
+```
+
+### Gene expression:"Old" PV samples vs "new" PV samples
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+if (file.exists(file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.PV_only.filtered.rds")) == FALSE){
+  old.new.markers.PV <- FindMarkers(object = s.obj, group.by = "check.sample", ident.1 = "old_data_PV", ident.2 = "new_data_PV", assay = "RNA", test.use = "wilcox")
+  saveRDS(old.new.markers.PV, file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.PV_only.raw.rds"))
+  old.new.markers.PV <- subset(old.new.markers.PV, old.new.markers.PV$p_val_adj <= 0.05)
+  saveRDS(old.new.markers.PV, file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.PV_only.filtered.rds"))  
+} else {
+  old.new.markers.PV <- readRDS(file.path(path.to.02.output, "compare_diff_genes.old_vs_new_batch.PV_only.filtered.rds"))
+}
+
+old.new.markers.PV <- old.new.markers.PV %>% 
+  rownames_to_column("Gene") %>%
+  rowwise() %>%
+  mutate(abs_avgLog2FC = abs(avg_log2FC)) %>%
+  arrange(desc(abs_avgLog2FC)) %>%
+  mutate(used_in_TSNE = ifelse(Gene %in% var.features, "yes", "no")) %>%
+  mutate(gene_only_in_old_batch = ifelse(pct.1 >= 0.25 & pct.2 == 0, "yes", "no")) %>%
+  mutate(gene_only_in_new_batch = ifelse(pct.1 == 0 & pct.2 >= 0.25, "yes", "no"))
+```
+
+#### Table
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+old.new.markers.PV %>% create_dt()
+```
+
+#### T-SNE plot
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=20, fig.width=28}
+DefaultAssay(s.obj) <- "RNA"
+p <- FeaturePlot(object = subset(s.obj, stage == "PV"), reduction = "INTE_TSNE", features = head(old.new.markers.LV, 12)$Gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red") 
+print(p)
+```
+
