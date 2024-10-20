@@ -14,7 +14,8 @@ output:
     number_sections: true
     theme: lumen
 params:
-  batch.id: NA
+  run: NA
+  sample.id: NA
 ---
 
 
@@ -45,10 +46,10 @@ script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=18}
 ##### clean up #####
-# gc()
-# rm(list = ls())
+gc()
+rm(list = ls())
 
-path.to.project.src <- "/home/hieunguyen/CRC1382/src_2023/ABeckers"
+path.to.project.src <- "/home/hieunguyen/CRC1382/src_2023/CRC1382_AGBerres"
 
 source(file.path(path.to.project.src, "00_import_libraries.R"))
 source(file.path(path.to.project.src, "00_helper_functions.R"))
@@ -59,16 +60,11 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 #####----------------------------------------------------------------------#####
 # CONFIGURATIONS AND PREPRATIONS
 #####----------------------------------------------------------------------#####
-PROJECT <- "ABeckers_data"
-path.to.storage <- "/media/hieunguyen/HD01/storage"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
-# batch.id <- "batch1"
-batch.id <- params$batch.id
+PROJECT <- "ABeckers_231205"
 
-# path.to.main.input <- file.path(outdir, PROJECT, batch.id)
-path.to.main.input <- file.path(outdir, "AGBerres/220311_Berres_MiedIII_scCITEseq")
-# s.obj <- readRDS(file.path(path.to.main.input, "s8_output", sprintf("%s.output.s8.rds", PROJECT)))
-s.obj <- readRDS(file.path(path.to.main.input, "s8_output", "AGBerres_4_samples_LV_PV.output.s8.rds"))
+path.to.main.input <- file.path(outdir, PROJECT)
+s.obj <- readRDS(file.path(path.to.main.input, "s8_output", sprintf("%s.output.s8.rds", PROJECT)))
 s.obj <- subset(s.obj, Doublet_classifications == "Singlet")
 
 path.to.main.output <- file.path(path.to.main.input, "data_analysis")
@@ -458,8 +454,6 @@ cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
 # meta.data <- meta.data[row.names(s.obj@meta.data), ]
 # s.obj <- AddMetaData(object = s.obj, metadata = meta.data$name, col.name = "name")
 # s.obj <- AddMetaData(object = s.obj, metadata = meta.data$stage, col.name = "stage")
-
-if (file.exists(file.path(path.to.01.output, sprintf("%s.rds", batch.id))) == FALSE){
-  saveRDS(s.obj, file.path(path.to.01.output, sprintf("%s.rds", batch.id)))  
-}
+# 
+saveRDS(s.obj, file.path(path.to.01.output, "Sample_PV73_LV73.rds"))
 ```

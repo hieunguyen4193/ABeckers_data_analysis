@@ -7,14 +7,14 @@ set.seed(my_random_seed)
 PROJECT <- "AGBerres_4_samples_LV_PV"
 
 # __________GEX DATA ANALYSIS PIPELINE__________
-path.to.pipeline.src <- "/home/hieunguyen/CRC1382/src/src_pipeline/scRNA_GEX_pipeline"
+path.to.pipeline.src <- "/home/hieunguyen/CRC1382/src_2023/src_pipeline/scRNA_GEX_pipeline"
 path2src <- file.path(path.to.pipeline.src, "processes_src")
 
 
 source(file.path(path2src, "import_libraries.R"))
 source(file.path(path.to.pipeline.src, "scRNA_GEX_pipeline.R"))
 
-path2input <- "/home/hieunguyen/CRC1382/storage/220311_Berres_MiedIII_scCITEseq"
+path2input <- "/media/hieunguyen/HD01/storage/AGBerres_Batch1"
 
 # _____stage lst for single sample_____
 stage_lst <- list()
@@ -74,7 +74,7 @@ filter.thresholds <- list(nFeatureRNAfloor = NULL,
                           ambientRNA_thres = 0.5)
 
 remove_doublet <- FALSE
-path.to.10X.doublet.estimation <- "/media/hieunguyen/HD0/ext_HDD/resources/DoubletEstimation10X.csv"
+path.to.10X.doublet.estimation <- "/media/hieunguyen/HD01/storage/DoubletEstimation10X.csv"
 
 
 num.PCA <- 30
@@ -84,8 +84,8 @@ num.PC.used.in.Clustering <- 30
 num.dim.integration <- 30
 num.dim.cluster <- 30
 
-path.to.output <- "/media/hieunguyen/CRC1382H/CRC1382/outdir/AGBerres/220311_Berres_MiedIII_scCITEseq"
-dir.create(path.to.output, showWarnings = FALSE)
+path.to.output <- "/home/hieunguyen/CRC1382/outdir/AGBerres/220311_Berres_MiedIII_scCITEseq"
+dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 
 filtered.barcodes <- NULL
 
@@ -113,8 +113,8 @@ s.obj <- run_pipeline_GEX(path2src=path2src,
                           input.method = "CITESEQ",
                           my_random_seed = my_random_seed,
                           cluster.resolution = 0.8, 
-                          num.dim.cluster = num.dim.cluster,
-                          num.dim.integration = num.dim.integration)
+                          num.dim.integration = num.dim.integration,
+                          sw = sw)
 
 #### ALWAYS REMEMBER TO SAVE SESSIONINFO !!!!!!
 writeLines(capture.output(sessionInfo()), file.path(path.to.output, sprintf("%s_sessionInfo.txt", PROJECT)))
