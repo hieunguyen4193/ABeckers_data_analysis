@@ -4,18 +4,19 @@ my_random_seed <- 42
 
 set.seed(my_random_seed)
 # __________VDJ DATA ANYLYSIS PIPELINE__________
-PROJECT <- "ABeckers_LV_20_21_PV_20_21"
+PROJECT <- "ABeckers_data"
+batch.id <- "batch1"
 
 # __________GEX DATA ANALYSIS PIPELINE__________
 path.to.pipeline.src <- "/home/hieunguyen/CRC1382/src_2023/src_pipeline/scRNA_GEX_pipeline"
 path2src <- file.path(path.to.pipeline.src, "processes_src")
 
-
 source(file.path(path2src, "import_libraries.R"))
 source(file.path(path.to.pipeline.src, "scRNA_GEX_pipeline.R"))
-
-path2input <- "/media/hieunguyen/HD01/storage/AGBerres_Batch1"
-path.to.output <- file.path(outdir, PROJECT)
+path.to.storage <- "/media/hieunguyen/HD01/storage"
+path2input <- file.path(path.to.storage, PROJECT, batch.id)
+outdir <- "/home/hieunguyen/CRC1382/outdir"
+path.to.output <- file.path(outdir, PROJECT, batch.id)
 dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 
 # _____stage lst for single sample_____
@@ -113,7 +114,7 @@ s.obj <- run_pipeline_GEX(path2src=path2src,
                           my_random_seed = my_random_seed,
                           cluster.resolution = 0.8, 
                           num.dim.integration = num.dim.integration,
-                          sw = sw)
+                          sw = sw, with.TSNE = TRUE)
 
 #### ALWAYS REMEMBER TO SAVE SESSIONINFO !!!!!!
 writeLines(capture.output(sessionInfo()), file.path(path.to.output, sprintf("%s_sessionInfo.txt", PROJECT)))

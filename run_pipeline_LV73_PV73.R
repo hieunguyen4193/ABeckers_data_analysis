@@ -7,6 +7,8 @@ my_random_seed <- 42
 set.seed(my_random_seed)
 # __________VDJ DATA ANYLYSIS PIPELINE__________
 PROJECT <- "ABeckers_data"
+batch.id <- "batch2"
+
 path.to.storage <- "/media/hieunguyen/HD01/storage"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
 path.to.output <- file.path(outdir, PROJECT, "batch2")
@@ -19,8 +21,8 @@ path2src <- file.path(path.to.pipeline.src, "processes_src")
 source(file.path(path2src, "import_libraries.R"))
 source(file.path(path.to.pipeline.src, "scRNA_GEX_pipeline.R"))
 
-path2input <- file.path(path.to.storage, PROJECT)
-
+path2input <- file.path(path.to.storage, PROJECT, batch.id)
+path.to.output <- file.path(outdir, PROJECT, batch.id)
 # _____stage lst for single sample_____
 stage_lst <- list()
 

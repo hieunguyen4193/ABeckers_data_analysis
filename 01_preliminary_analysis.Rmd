@@ -65,10 +65,8 @@ outdir <- "/home/hieunguyen/CRC1382/outdir"
 # batch.id <- "batch1"
 batch.id <- params$batch.id
 
-# path.to.main.input <- file.path(outdir, PROJECT, batch.id)
-path.to.main.input <- file.path(outdir, "AGBerres/220311_Berres_MiedIII_scCITEseq")
-# s.obj <- readRDS(file.path(path.to.main.input, "s8_output", sprintf("%s.output.s8.rds", PROJECT)))
-s.obj <- readRDS(file.path(path.to.main.input, "s8_output", "AGBerres_4_samples_LV_PV.output.s8.rds"))
+path.to.main.input <- file.path(outdir, PROJECT, batch.id)
+s.obj <- readRDS(file.path(path.to.main.input, "s8_output", sprintf("%s.output.s8.rds", PROJECT)))
 s.obj <- subset(s.obj, Doublet_classifications == "Singlet")
 
 path.to.main.output <- file.path(path.to.main.input, "data_analysis")
@@ -443,6 +441,8 @@ cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
   cat("\n \n")  
 }
 ```
+
+# Some marker genes for cell types
 
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
