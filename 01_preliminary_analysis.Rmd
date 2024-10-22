@@ -92,7 +92,6 @@ if (file.exists(file.path(path.to.01.output, "DE_cluster_surface_marker.rds")) =
 } else {
   cluster.surface_markers <- readRDS(file.path(path.to.01.output, "DE_cluster_surface_marker.rds"))
 }
-
 ```
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=18}

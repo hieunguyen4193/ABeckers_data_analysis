@@ -57,6 +57,9 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 PROJECT <- "ABeckers_data"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
 
+# install.packages("https://cran.r-project.org/src/contrib/Archive/knitr/knitr_1.45.tar.gz", type = "source", repos = NULL)
+# install.packages("https://cran.r-project.org/src/contrib/Archive/rmarkdown/rmarkdown_2.26.tar.gz", type = "source", repos = NULL)
+
 path.to.main.input <- file.path(outdir, PROJECT)
 
 path.to.main.output <- file.path(path.to.main.input, "data_analysis")
@@ -179,6 +182,24 @@ DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE,
 
 # Cluster marker genes
 
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=18}
+if (file.exists(file.path(path.to.03.output, "DE_cluster_marker_genes.rds")) == FALSE){
+  cluster.markers <- FindAllMarkers(object = s.obj, assay = "RNA", test.use = "wilcox")
+  cluster.markers <- subset(cluster.markers, cluster.markers$p_val_adj < 0.05 & cluster.markers$avg_log2FC > 0)
+  saveRDS(cluster.markers, file.path(path.to.03.output, "DE_cluster_marker_genes.rds"))
+} else {
+  cluster.markers <- readRDS(file.path(path.to.03.output, "DE_cluster_marker_genes.rds"))
+}
+
+if (file.exists(file.path(path.to.03.output, "DE_cluster_surface_marker.rds")) == FALSE){
+  cluster.surface_markers <- FindAllMarkers(object = s.obj, assay = "ADT", test.use = "wilcox")
+  cluster.surface_markers <- subset(cluster.surface_markers, cluster.surface_markers$p_val_adj < 0.05 & cluster.surface_markers$avg_log2FC > 0)
+  saveRDS(cluster.surface_markers, file.path(path.to.03.output, "DE_cluster_surface_marker.rds"))
+} else {
+  cluster.surface_markers <- readRDS(file.path(path.to.03.output, "DE_cluster_surface_marker.rds"))
+}
+
+```
 Identify differentially expressed genes in each cluster. 
 
 ## Feature plot {.tabset}
@@ -335,6 +356,7 @@ for (cluster.id in all.cluster.ids){
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
 # use this script to check if the gene is in the data
 marker.genedf <- read.table(file.path(path.to.project.src, "marker_genes.csv"), sep = ",", header  = TRUE)
+DefaultAssay(s.obj) <- "RNA"
 avai.genes <- c()
 for (pat in marker.genedf$Gene){
   check.genes <- to_vec(
