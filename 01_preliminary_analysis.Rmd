@@ -62,7 +62,7 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 PROJECT <- "ABeckers_data"
 path.to.storage <- "/media/hieunguyen/HD01/storage"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
-# batch.id <- "batch1"
+# batch.id <- "batch2"
 batch.id <- params$batch.id
 
 path.to.main.input <- file.path(outdir, PROJECT, batch.id)
@@ -85,14 +85,20 @@ if (file.exists(file.path(path.to.01.output, "DE_cluster_marker_genes.rds")) == 
   cluster.markers <- readRDS(file.path(path.to.01.output, "DE_cluster_marker_genes.rds"))
 }
 
-```
+if (file.exists(file.path(path.to.01.output, "DE_cluster_surface_marker.rds")) == FALSE){
+  cluster.surface_markers <- FindAllMarkers(object = s.obj, assay = "ADT", test.use = "wilcox")
+  cluster.surface_markers <- subset(cluster.surface_markers, cluster.surface_markers$p_val_adj < 0.05 & cluster.surface_markers$avg_log2FC > 0)
+  saveRDS(cluster.surface_markers, file.path(path.to.01.output, "DE_cluster_surface_marker.rds"))
+} else {
+  cluster.surface_markers <- readRDS(file.path(path.to.01.output, "DE_cluster_surface_marker.rds"))
+}
 
+```
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=18}
 ##### Add TSNE
 s.obj <- RunTSNE(s.obj, reduction = "INTE_PCA", dims = 1:30, reduction.name="INTE_TSNE")
 ```
-
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=18}
 # convert.stage <- list(Sample_3 = "PV", Sample_4 = "LV")
@@ -442,23 +448,136 @@ cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
 }
 ```
 
+
+# Cluster SURFACE marker genes
+
+Identify differentially expressed genes in each cluster. 
+
+## Feature plot {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.surface_markers <- subset(cluster.surface_markers, cluster.surface_markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  if (nrow(tmp.cluster.surface_markers) == 0){
+    p <- ggplot() + ggtitle("No different surface marker found in this cluster")
+  } else {
+    p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = head(tmp.cluster.surface_markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")    
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Dot plot{.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.surface_markers <- subset(cluster.surface_markers, cluster.surface_markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  if (nrow(tmp.cluster.surface_markers) == 0){
+    p <- ggplot() + ggtitle("No different surface marker found in this cluster")
+  } else {
+    p <- DotPlot(object = s.obj, features = head(tmp.cluster.surface_markers, 12)$gene)  
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Violin plot{.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.surface_markers <- subset(cluster.surface_markers, cluster.surface_markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  if (nrow(tmp.cluster.surface_markers) == 0){
+    p <- ggplot() + ggtitle("No different surface marker found in this cluster")
+  } else {
+    p <- VlnPlot(object = s.obj, features = head(tmp.cluster.surface_markers, 12)$gene)  
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Full tables of DE genes {.tabset}
+```{r echo=FALSE, results='asis', include=FALSE}
+cluster.surface_markers %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+all.cluster.ids <- sort(unique(s.obj$seurat_clusters))
+for (cluster.id in all.cluster.ids){
+  tmp.table <- subset(cluster.surface_markers, cluster.surface_markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
+  print( htmltools::tagList(datatable(tmp.table, extensions = 'Buttons',
+                                      filter = "top",
+                                      options = list(dom = 'Blfrtip',
+                                                     buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                                     lengthMenu = list(c(10,25,50,-1),
+                                                                       c(10,25,50,"All")),
+                                                     columnDefs = list(list(
+                                                       targets = "_all",
+                                                       render = JS(
+                                                         "function(data, type, row, meta) {",
+                                                         "return type === 'display' && data != null && data.length > 100 ?",
+                                                         "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                                         "}")
+                                                     ))
+                                      ))))
+  cat("\n \n")  
+}
+```
+
 # Some marker genes for cell types
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+# use this script to check if the gene is in the data
+marker.genedf <- read.table(file.path(path.to.project.src, "marker_genes.csv"), sep = ",", header  = TRUE)
+avai.genes <- c()
+for (pat in marker.genedf$Gene){
+  check.genes <- to_vec(
+  for (item  in row.names(s.obj)) if(grepl(pat, item) == TRUE) item
+)
+  if (length(check.genes) == 0){
+    print(pat)
+  } else {
+    avai.genes <- c(avai.genes, c(pat))
+  }
+}
+marker.genedf <- subset(marker.genedf, marker.genedf$Gene %in% avai.genes)
+marker.genedf %>% create_dt()
+```
 
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-# convert.name.to.sampleid <- list(Sample_3 = "PV73",
-#                                  Sample_4 = "LV73")
-# meta.data <- s.obj@meta.data %>% rownames_to_column("barcode") %>%
-#   rowwise() %>%
-#   mutate(name = convert.name.to.sampleid[[name]]) %>%
-#   mutate(stage = ifelse(name == "LV73", "LV", "PV")) %>% 
-#   as.data.frame() %>%
-#   column_to_rownames("barcode")
-# 
-# meta.data <- meta.data[row.names(s.obj@meta.data), ]
-# s.obj <- AddMetaData(object = s.obj, metadata = meta.data$name, col.name = "name")
-# s.obj <- AddMetaData(object = s.obj, metadata = meta.data$stage, col.name = "stage")
+if ("svglite" %in% installed.packages() == FALSE){
+  install.packages("svglite")
+}
+for (g in unique(marker.genedf$Gene)){
+  dir.create(file.path(path.to.01.output, "marker_gene_plots"), showWarnings = FALSE, recursive = TRUE)
+  DefaultAssay(s.obj) <- "RNA"
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
+  ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.01.output, "marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+  ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.01.output, "marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+}
 
+DefaultAssay(s.obj) <- "ADT"
+s.obj <- NormalizeData(s.obj, normalization.method = "CLR", margin = 2)
+s.obj <- ScaleData(s.obj)
+all.surface.markers <- unique(row.names(s.obj))
+for (g in all.surface.markers){
+  dir.create(file.path(path.to.01.output, "surface_marker_plots"), showWarnings = FALSE, recursive = TRUE)
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
+  ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.01.output, "surface_marker_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+  ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.01.output, "surface_marker_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+}
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
 if (file.exists(file.path(path.to.01.output, sprintf("%s.rds", batch.id))) == FALSE){
   saveRDS(s.obj, file.path(path.to.01.output, sprintf("%s.rds", batch.id)))  
 }

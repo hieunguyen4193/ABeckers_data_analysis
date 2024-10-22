@@ -67,7 +67,7 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 PROJECT <- "ABeckers_data"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
 path.to.main.input <- file.path(outdir, PROJECT)
-path.to.02.output <- file.path(outdir, PROJECT, "integrated_data", "03_output")
+path.to.02.output <- file.path(outdir, PROJECT, "integrated_data", "02_output")
 dir.create(path.to.02.output, showWarnings = FALSE, recursive = TRUE)
 
 s.obj.batch1 <- readRDS(file.path(outdir, PROJECT, "batch1", "data_analysis", "01_output", "batch1.rds"))
@@ -161,6 +161,87 @@ DimPlot(object = s.obj, reduction = "INTE_TSNE", group.by = "name", label = TRUE
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
 p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c("nCount_RNA", "nFeature_RNA", "percent.mt", "percent.ribo", "log10GenesPerUMI"), ncol = 2) 
 p
+```
+
+# Cluster marker genes
+
+Identify differentially expressed genes in each cluster. 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=18}
+if (file.exists(file.path(path.to.02.output, "DE_cluster_marker_genes.rds")) == FALSE){
+  Idents(s.obj) <- "seurat_clusters"
+  cluster.markers <- FindAllMarkers(object = s.obj, assay = "RNA", test.use = "wilcox")
+  cluster.markers <- subset(cluster.markers, cluster.markers$p_val_adj < 0.05 & cluster.markers$avg_log2FC > 0)
+  saveRDS(cluster.markers, file.path(path.to.02.output, "DE_cluster_marker_genes.rds"))
+} else {
+  cluster.markers <- readRDS(file.path(path.to.02.output, "DE_cluster_marker_genes.rds"))
+}
+
+```
+
+## Feature plot {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = head(tmp.cluster.markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")  
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Dot plot{.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  p <- DotPlot(object = s.obj, features = head(tmp.cluster.markers, 12)$gene)  
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Violin plot{.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  p <- VlnPlot(object = s.obj, features = head(tmp.cluster.markers, 12)$gene)  
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Full tables of DE genes {.tabset}
+```{r echo=FALSE, results='asis', include=FALSE}
+cluster.markers %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+all.cluster.ids <- sort(unique(s.obj$seurat_clusters))
+for (cluster.id in all.cluster.ids){
+  tmp.table <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
+  print( htmltools::tagList(datatable(tmp.table, extensions = 'Buttons',
+                filter = "top",
+                options = list(dom = 'Blfrtip',
+                               buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                               lengthMenu = list(c(10,25,50,-1),
+                                                 c(10,25,50,"All")),
+                               columnDefs = list(list(
+                                 targets = "_all",
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data != null && data.length > 100 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                   "}")
+                               ))
+                ))))
+  cat("\n \n")  
+}
 ```
 
 # Difference between 2 batches of data
@@ -311,4 +392,6 @@ DefaultAssay(s.obj) <- "RNA"
 p <- FeaturePlot(object = subset(s.obj, stage == "PV"), reduction = "INTE_TSNE", features = head(old.new.markers.LV, 12)$Gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red") 
 print(p)
 ```
+
+# Some marker genes
 

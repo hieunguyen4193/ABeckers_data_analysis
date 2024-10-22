@@ -1,0 +1,852 @@
+---
+title: "Integrate old and new datasets"
+author:
+  - "trnguyen@ukaachen.de"
+date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    keep_md: no
+    df_print: paged
+    toc: true
+    toc_float:
+      toc_collapsed: false
+    toc_depth: 3
+    number_sections: true
+    theme: lumen
+---
+
+
+```{css zoom-lib-src, echo = FALSE}
+script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
+```
+
+```{js zoom-jquery, echo = FALSE}
+ $(document).ready(function() {
+    $('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+    // onClick function for all plots (img's)
+    $('img:not(.zoomImg)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+      $('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+    });
+    // onClick function for zoomImg
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').css({opacity: '0', width: '0%'}); 
+    });
+  });
+```
+
+<style type="text/css">
+    div.datatables { height: auto !important;}
+</style>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=14}
+##### clean up #####
+gc()
+rm(list = ls())
+
+path.to.project.src <- "/home/hieunguyen/CRC1382/src_2023/ABeckers"
+source(file.path(path.to.project.src, "00_import_libraries.R"))
+source(file.path(path.to.project.src, "00_helper_functions.R"))
+
+path.to.src <- "/home/hieunguyen/CRC1382/src_2023/src_pipeline/scRNA_GEX_pipeline/processes_src"
+source(file.path(path.to.src, "s8_integration_and_clustering.R"))
+
+#####----------------------------------------------------------------------#####
+# CONFIGURATIONS AND PREPRATIONS
+#####----------------------------------------------------------------------#####
+PROJECT <- "ABeckers_data"
+outdir <- "/home/hieunguyen/CRC1382/outdir"
+
+path.to.main.input <- file.path(outdir, PROJECT)
+
+path.to.main.output <- file.path(path.to.main.input, "data_analysis")
+path.to.03.output <- file.path(path.to.main.output, "03_output")
+dir.create(path.to.03.output, showWarnings = FALSE, recursive = TRUE)
+
+s.obj.batch1 <- readRDS(file.path(outdir, PROJECT, "batch1", "data_analysis", "01_output", "batch1.rds"))
+s.obj.batch2 <- readRDS(file.path(outdir, PROJECT, "batch2", "data_analysis", "01_output", "batch2.rds"))
+```
+
+# UMAP of 2 datasets
+
+## New dataset
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+DimPlot(object = s.obj.batch2, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, repel = TRUE)
+```
+
+## Previous dataset
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+DimPlot(object = s.obj.batch1, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, repel = TRUE)
+```
+
+# Integration of the two datasets
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+num.PCA <- 30
+num.PC.used.in.UMAP <- 30
+num.PC.used.in.Clustering <- 30
+num.dim.integration <- 30
+num.dim.cluster <- 30
+cluster.resolution <- 0.5
+chosen.seed <- 42
+if (file.exists(file.path(path.to.03.output, "merge_all_6_samples.RNA_assay.rds")) == FALSE){
+  chosen.assay <- "RNA"
+  DefaultAssay(s.obj.batch1) <- chosen.assay
+  DefaultAssay(s.obj.batch2) <- chosen.assay
+  
+  s.obj.batch1 <- RunPCA(s.obj.batch1, npcs = num.PCA, verbose = FALSE, reduction.name="RNA_PCA")
+  s.obj.batch2 <- RunPCA(s.obj.batch2, npcs = num.PCA, verbose = FALSE, reduction.name="RNA_PCA")
+  
+  integration.anchors <- FindTransferAnchors(reference = s.obj.batch1, query = s.obj.batch2,
+                                               dims = 1:25, reference.reduction = "RNA_PCA")
+    
+  ##### Transfer label from anchors to query dataset
+  # predictions <- TransferData(anchorset = integration.anchors, refdata = s.obj.batch1$seurat_clusters, dims = 1:25)
+  # s.obj.batch2 <- AddMetaData(s.obj.batch2, metadata = predictions$predicted.id, col.name = "seurat_clusters")
+
+  s.obj <- merge(x = s.obj.batch1, 
+                 y = s.obj.batch2,
+                 merge.data = FALSE)
+
+  chosen.assay <- "RNA"
+  DefaultAssay(s.obj) <- chosen.assay
+  
+  s.obj <- NormalizeData(s.obj) # ---> use Log Normalized
+  s.obj <- FindVariableFeatures(s.obj, selection.method = "vst")
+  s.obj <- ScaleData(s.obj, features = rownames(s.obj))
+  
+  s.obj <- RunPCA(s.obj, npcs = num.PCA, verbose = FALSE, reduction.name=sprintf("%s_PCA", chosen.assay))
+  s.obj <- RunUMAP(s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PCA, 
+                             reduction.name=sprintf("%s_UMAP", chosen.assay), seed.use = chosen.seed)
+  s.obj <- RunTSNE(s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PCA, 
+                             reduction.name=sprintf("%s_TSNE", chosen.assay), seed.use = chosen.seed)
+  
+  s.obj <- FindNeighbors(s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PC.used.in.Clustering)
+  
+  s.obj <- FindClusters(s.obj, resolution = cluster.resolution, random.seed = chosen.seed)
+  
+  saveRDS(object = s.obj, file = file.path(path.to.03.output, "merge_all_6_samples.RNA_assay.rds"))  
+  print("Finished saving the file")
+  write.csv(data.frame(data = c("finished saving the object to disk")), file.path(path.to.03.output, "CHECK_merge_all_6_samples.RNA_assay.rds.csv"))
+} else {
+  s.obj <- readRDS(file.path(path.to.03.output, "merge_all_6_samples.RNA_assay.rds"))
+}
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+source("/home/hieunguyen/CRC1382/src_2023/src_pipeline/scRNA_GEX_pipeline/processes_src/s8_integration_and_clustering.R")
+if (file.exists(file.path(path.to.03.output, "s8_output", "merge_all_6_samples_test_function.output.s8.rds")) == FALSE){
+  s.obj <- s8.integration.and.clustering(s.obj = s.obj, 
+                           path.to.output = path.to.03.output, 
+                           save.RDS.s8 = TRUE,
+                           PROJECT = "merge_all_6_samples_test_function", 
+                           num.dim.integration = num.dim.integration,
+                           num.PCA = num.PCA,
+                           num.PC.used.in.UMAP = num.PC.used.in.UMAP,
+                           num.PC.used.in.Clustering = num.PC.used.in.Clustering,
+                           cluster.resolution = cluster.resolution,
+                           my_random_seed = 42,
+                           umap.method = "uwot",
+                           genes.to.not.run.PCA = NULL,
+                           inte_pca_reduction_name = "INTE_PCA", 
+                           inte_umap_reduction_name = "INTE_UMAP",
+                           with.TSNE = TRUE,
+                           k.filter = 200)  
+} else {
+  s.obj <- readRDS(file.path(path.to.03.output, "s8_output", "merge_all_6_samples_test_function.output.s8.rds"))
+}
+
+```
+
+## TSNE: all clusters 
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=12}
+DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE) + 
+  ggtitle(sprintf("TSNE: All clusters")) +
+  theme(axis.text = element_text(size=20, face = "bold"),
+        axis.title = element_text(size=20, face = "bold"), 
+        title = element_text(size = 20, face = "bold"))
+```
+
+## TSNE: all samples
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=12}
+DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE, group.by = "name") + 
+  ggtitle(sprintf("TSNE Sample: All samples after integrating")) +
+  theme(axis.text = element_text(size=20, face = "bold"),
+        axis.title = element_text(size=20, face = "bold"), 
+        title = element_text(size = 20, face = "bold"))
+```
+
+# Cluster marker genes
+
+Identify differentially expressed genes in each cluster. 
+
+## Feature plot {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = head(tmp.cluster.markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")  
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Dot plot{.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  p <- DotPlot(object = s.obj, features = head(tmp.cluster.markers, 12)$gene)  
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Violin plot{.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  p <- VlnPlot(object = s.obj, features = head(tmp.cluster.markers, 12)$gene)  
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Full tables of DE genes {.tabset}
+```{r echo=FALSE, results='asis', include=FALSE}
+cluster.markers %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+all.cluster.ids <- sort(unique(s.obj$seurat_clusters))
+for (cluster.id in all.cluster.ids){
+  tmp.table <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
+  print( htmltools::tagList(datatable(tmp.table, extensions = 'Buttons',
+                filter = "top",
+                options = list(dom = 'Blfrtip',
+                               buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                               lengthMenu = list(c(10,25,50,-1),
+                                                 c(10,25,50,"All")),
+                               columnDefs = list(list(
+                                 targets = "_all",
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data != null && data.length > 100 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                   "}")
+                               ))
+                ))))
+  cat("\n \n")  
+}
+```
+
+
+# Cluster SURFACE marker genes
+
+Identify differentially expressed genes in each cluster. 
+
+## Feature plot {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.surface_markers <- subset(cluster.surface_markers, cluster.surface_markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  if (nrow(tmp.cluster.surface_markers) == 0){
+    p <- ggplot() + ggtitle("No different surface marker found in this cluster")
+  } else {
+    p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = head(tmp.cluster.surface_markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")    
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Dot plot{.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.surface_markers <- subset(cluster.surface_markers, cluster.surface_markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  if (nrow(tmp.cluster.surface_markers) == 0){
+    p <- ggplot() + ggtitle("No different surface marker found in this cluster")
+  } else {
+    p <- DotPlot(object = s.obj, features = head(tmp.cluster.surface_markers, 12)$gene)  
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Violin plot{.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.surface_markers <- subset(cluster.surface_markers, cluster.surface_markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  if (nrow(tmp.cluster.surface_markers) == 0){
+    p <- ggplot() + ggtitle("No different surface marker found in this cluster")
+  } else {
+    p <- VlnPlot(object = s.obj, features = head(tmp.cluster.surface_markers, 12)$gene)  
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Full tables of DE genes {.tabset}
+```{r echo=FALSE, results='asis', include=FALSE}
+cluster.surface_markers %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+all.cluster.ids <- sort(unique(s.obj$seurat_clusters))
+for (cluster.id in all.cluster.ids){
+  tmp.table <- subset(cluster.surface_markers, cluster.surface_markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
+  cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
+  print( htmltools::tagList(datatable(tmp.table, extensions = 'Buttons',
+                                      filter = "top",
+                                      options = list(dom = 'Blfrtip',
+                                                     buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                                                     lengthMenu = list(c(10,25,50,-1),
+                                                                       c(10,25,50,"All")),
+                                                     columnDefs = list(list(
+                                                       targets = "_all",
+                                                       render = JS(
+                                                         "function(data, type, row, meta) {",
+                                                         "return type === 'display' && data != null && data.length > 100 ?",
+                                                         "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                                         "}")
+                                                     ))
+                                      ))))
+  cat("\n \n")  
+}
+```
+
+
+
+# Some marker genes for cell types
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+# use this script to check if the gene is in the data
+marker.genedf <- read.table(file.path(path.to.project.src, "marker_genes.csv"), sep = ",", header  = TRUE)
+avai.genes <- c()
+for (pat in marker.genedf$Gene){
+  check.genes <- to_vec(
+  for (item  in row.names(s.obj)) if(grepl(pat, item) == TRUE) item
+)
+  if (length(check.genes) == 0){
+    print(pat)
+  } else {
+    avai.genes <- c(avai.genes, c(pat))
+  }
+}
+marker.genedf <- subset(marker.genedf, marker.genedf$Gene %in% avai.genes)
+marker.genedf %>% create_dt()
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+if ("svglite" %in% installed.packages() == FALSE){
+  install.packages("svglite")
+}
+for (g in unique(marker.genedf$Gene)){
+  dir.create(file.path(path.to.03.output, "marker_gene_plots"), showWarnings = FALSE, recursive = TRUE)
+  DefaultAssay(s.obj) <- "RNA"
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
+  ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+  ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+}
+
+DefaultAssay(s.obj) <- "ADT"
+s.obj <- NormalizeData(s.obj, normalization.method = "CLR", margin = 2)
+s.obj <- ScaleData(s.obj)
+all.surface.markers <- unique(row.names(s.obj))
+for (g in all.surface.markers){
+  dir.create(file.path(path.to.03.output, "surface_marker_plots"), showWarnings = FALSE, recursive = TRUE)
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
+  ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "surface_marker_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+  ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "surface_marker_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+}
+```
+
+# Hashtag-Antibodies data (ADT)
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+DefaultAssay(s.obj) <- "ADT"
+
+counts.adt <- GetAssayData(s.obj, slot = "counts", assay = "ADT")
+s.obj.HTO <- CreateSeuratObject(counts = counts.adt, assay = "HTO")
+
+s.obj.HTO <- NormalizeData(s.obj.HTO, normalization.method = "CLR")
+
+```
+
+## Histogram: Raw count number of hashtags per cell {.tabset}
+Histogram: Raw count number of hashtags per cell: 
+
+- x-axis: Number of hashtags per cell
+
+- y-axis: Number of cells
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (ht in unique(row.names(s.obj.HTO))){
+  hashtag.counts <- counts.adt[ht, ] %>% as.data.frame()
+  colnames(hashtag.counts) <- c("count")
+  cat(sprintf("### Hashtag: %s \n", ht))
+  p <- ggplot(subset(hashtag.counts, hashtag.counts$count >= 0), aes(x = count)) + geom_histogram(bins = max(hashtag.counts$count)) + ggtitle(ht) + 
+    theme(text = element_text(size=20), 
+          axis.text.x = element_text(hjust=1, size = 20),
+          axis.text.y = element_text(hjust=1, size = 20)) 
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Histogram: log-transformed raw counts of hashtags per cell {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (ht in  unique(row.names(s.obj.HTO))){
+  counts.adt.ht123 <- GetAssayData(s.obj.HTO, slot = "counts")
+  hashtag.counts <- log2(counts.adt.ht123)[ht, ] %>% as.data.frame()
+  colnames(hashtag.counts) <- c("count")
+  cat(sprintf("### Hashtag: %s \n", ht))
+  p <- ggplot(subset(hashtag.counts, hashtag.counts$count >= 0), aes(x = count)) + geom_histogram(bins = 10) + 
+    ggtitle(ht)  + 
+    theme(text = element_text(size=20), 
+          axis.text.x = element_text(hjust=1, size = 20),
+          axis.text.y = element_text(hjust=1, size = 20)) 
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Assigned cut-off 
+```{r echo=FALSE, warning=FALSE, results='hide', message=FALSE}
+# s.obj.HTO <- HTODemux(s.obj.HTO, assay = "HTO", positive.quantile = 0.99)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+# Idents(s.obj.HTO) <- factor(x = Idents(s.obj), levels = levels(s.obj))
+```
+
+## Illustration by Ridge plots, Hashtag-Antibodies expression values in each cluster {.tabset}
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=12, fig.height=12}
+main.metadata <- s.obj@meta.data %>% rownames_to_column("barcode")
+meta.data <- s.obj.HTO@meta.data %>% rownames_to_column("barcode")
+meta.data <- merge(meta.data, main.metadata, by.x = "barcode", by.y = "barcode") %>%
+  column_to_rownames("barcode")
+meta.data <- meta.data[row.names(s.obj@meta.data),]
+s.obj.HTO <- AddMetaData(object = s.obj.HTO, metadata = meta.data$seurat_clusters, col.name = "seurat_clusters")
+Idents(s.obj.HTO) <- "seurat_clusters"
+for (hashtag in rownames(s.obj.HTO[["HTO"]])){
+  cat(sprintf("### %s \n", hashtag))
+  p <- RidgePlot(s.obj.HTO, assay = "HTO", features = hashtag) +
+    theme(legend.position = "none")
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Illustration by Violin plot {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=12, fig.height=12}
+
+for (hashtag in rownames(s.obj.HTO[["HTO"]])){
+  cat(sprintf("### %s \n", hashtag))
+  p <- VlnPlot(s.obj.HTO, assay = "HTO", features = c(hashtag)) + theme(legend.position = "none")
+  print(p)
+  cat("\n \n")
+}
+```
+
+
+# Diffferential gene expression analysis
+
+We perform differential gene expression analysis for each cell type between all LV samples vs all PV samples. 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+if (file.exists(file.path(path.to.03.output, "diff_markers.rds")) == FALSE){
+  diff.markers <- hash()
+  raw.diff.markers <- hash()
+  
+  DefaultAssay(s.obj) <- "RNA"
+  for (input.celltype in unique(s.obj$seurat_clusters)){
+    subset.s.obj <- subset(s.obj, seurat_clusters == input.celltype)
+    tmp <- FindMarkers(object = subset.s.obj, assay = "RNA", ident.1 = "LV", ident.2 = "PV", group.by = "stage")
+    tmp.raw <- tmp %>% rownames_to_column("Gene")
+    tmp <- tmp %>%
+      rownames_to_column("Gene") %>%
+      subset(p_val_adj <= 0.05) %>%
+      rowwise() %>%
+      mutate(abs_log2FC = abs(avg_log2FC)) %>%
+      arrange(desc(abs_log2FC))
+    diff.markers[[input.celltype]] <- tmp
+    raw.diff.markers[[input.celltype]] <- tmp.raw
+  }
+  
+  saveRDS(diff.markers, file.path(path.to.03.output, "diff_markers.rds"))
+  saveRDS(raw.diff.markers, file.path(path.to.03.output, "raw_diff_markers.rds"))  
+} else {
+  diff.markers <- readRDS(file.path(path.to.03.output, "diff_markers.rds"))
+  raw.diff.markers <- readRDS(file.path(path.to.03.output, "raw_diff_markers.rds"))
+}
+
+```
+
+## Tables {.tabset}
+```{r echo=FALSE, results='asis', include=FALSE}
+diff.markers$DC1 %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+
+for (cluster.id in names(diff.markers)){
+  tmp.table <- diff.markers[[cluster.id]]
+  cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
+  print( htmltools::tagList(datatable(tmp.table, extensions = 'Buttons',
+                filter = "top",
+                options = list(dom = 'Blfrtip',
+                               buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                               lengthMenu = list(c(10,25,50,-1),
+                                                 c(10,25,50,"All")),
+                               columnDefs = list(list(
+                                 targets = "_all",
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data != null && data.length > 100 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                   "}")
+                               ))
+                ))))
+  cat("\n \n")  
+}
+```
+
+## Dot plot, all samples grouped by condition {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in names(diff.markers)){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- diff.markers[[cluster.id]] 
+  if (nrow(tmp.cluster.markers) != 0){
+    tmp.cluster.markers <- tmp.cluster.markers %>% arrange(desc(abs_log2FC))
+    Idents(s.obj) <- "stage"
+    p <- DotPlot(object = subset(s.obj, seurat_clusters == cluster.id), features = head(tmp.cluster.markers, 12)$Gene)  
+  } else{
+    p <- ggplot() + ggtitle("No differentially expressed gene to show.")
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Dot plot, each sample {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in names(diff.markers)){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- diff.markers[[cluster.id]] 
+  if (nrow(tmp.cluster.markers) != 0){
+    tmp.cluster.markers <- tmp.cluster.markers %>% arrange(desc(abs_log2FC))
+    Idents(s.obj) <- "name"
+    p <- DotPlot(object = subset(s.obj, seurat_clusters == cluster.id), features = head(tmp.cluster.markers, 12)$Gene)  
+  } else{
+    p <- ggplot() + ggtitle("No differentially expressed gene to show.")
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Violin plot, all samples grouped by condition {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in names(diff.markers)){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- diff.markers[[cluster.id]] 
+  if (nrow(tmp.cluster.markers) != 0){
+    tmp.cluster.markers <- tmp.cluster.markers %>% arrange(desc(abs_log2FC))
+    Idents(s.obj) <- "stage"
+    p <- VlnPlot(object = subset(s.obj, seurat_clusters == cluster.id), features = head(tmp.cluster.markers, 12)$Gene, pt.size = 0)  
+  } else{
+    p <- ggplot() + ggtitle("No differentially expressed gene to show.")
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Violin plot, each sample {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in names(diff.markers)){
+  DefaultAssay(s.obj) <- "RNA"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- diff.markers[[cluster.id]] 
+  if (nrow(tmp.cluster.markers) != 0){
+    tmp.cluster.markers <- tmp.cluster.markers %>% arrange(desc(abs_log2FC))
+    Idents(s.obj) <- "name"
+    p <- VlnPlot(object = subset(s.obj, seurat_clusters == cluster.id), features = head(tmp.cluster.markers, 12)$Gene, pt.size = 0)  
+  } else{
+    p <- ggplot() + ggtitle("No differentially expressed gene to show.")
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Volcano plots {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+for(cluster.id in names(diff.markers)){
+  cat(sprintf("### %s \n", cluster.id))
+  tmp <- raw.diff.markers[[cluster.id]] 
+  tmp.filtered <- diff.markers[[cluster.id]] %>% arrange(desc(abs_log2FC))
+  gene.to.plot <- head(tmp.filtered, 10)$Gene
+  tmp <- tmp %>%
+    rowwise() %>%
+    mutate(sig = ifelse(p_val_adj <= 0.05, "significant", "not significant")) %>%
+    mutate(volcano.Gene = ifelse(Gene %in% gene.to.plot, Gene, NA))
+  
+  volcano.plot <- ggplot(data=tmp, aes(x=avg_log2FC, y=-log10(p_val_adj), col=sig, label=volcano.Gene)) +
+    geom_point() + 
+    scale_color_manual(values=c("#c0d2f0", "#f28095")) +
+    theme_minimal() +
+    geom_vline(xintercept=c(0), col="#9a9fa6", linetype='dotted') +
+    geom_vline(xintercept=c(-1, 1), col="#9a9fa6", linetype='dotted') +
+    geom_hline(yintercept=-log10(0.05), col="#9a9fa6", linetype='dotted') +
+    theme_bw() +
+    theme(plot.title = element_text(hjust=0.5, face="bold", size = 12)) +
+    geom_text_repel(max.overlaps = 10000,
+                    segment.colour = "black", fontface = 'bold', seed = 42, colour = "red", size = 6)
+  
+  print(volcano.plot)  
+  cat("\n \n")
+}
+
+```
+
+<!-- # Differential gene expression analysis by pseudobulk-RNA data -->
+
+<!-- ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14} -->
+<!-- library(DESeq2) -->
+
+<!-- test.celltype <- "DC3" -->
+
+<!-- test.barcodes <- hash() -->
+<!-- for (sample.id in unique(s.obj$name)){ -->
+<!--   test.barcodes[[sample.id]] <- subset(s.obj, seurat_clusters == test.celltype & name == sample.id) %>% colnames()   -->
+<!-- } -->
+
+<!-- pseudobulk.matrix <- data.frame(Gene = row.names(s.obj)) -->
+<!-- condition1 <- "LV" -->
+<!-- condition2 <- "PV" -->
+
+<!-- s.obj.list <- hash() -->
+<!-- s.obj.list[[condition1]] <- subset(s.obj, stage == condition1) -->
+<!-- s.obj.list[[condition2]] <- subset(s.obj, stage == condition2) -->
+
+<!-- DefaultAssay(s.obj.list[[condition1]]) <- "RNA" -->
+<!-- DefaultAssay(s.obj.list[[condition2]]) <- "RNA" -->
+
+<!-- count.matrix <- hash() -->
+<!-- for (condition in c(condition1, condition2)){ -->
+<!--   count.matrix[[condition]] <- hash() -->
+<!--   for (sample.id in unique(subset(s.obj, stage == condition)$name)){ -->
+<!--     tmp.count.matrix <- GetAssayData(subset(s.obj, name == sample.id), slot = "count", assay = "RNA")[, test.barcodes[[sample.id]]] -->
+<!--     rowsum.tmp <- rowSums(tmp.count.matrix)  -->
+<!--     rowsum.tmp <- rowsum.tmp[rowsum.tmp >= 10] -->
+<!--     tmp.count.matrix <- rowsum.tmp %>%  as.data.frame() %>% -->
+<!--       rownames_to_column("Gene") -->
+<!--     colnames(tmp.count.matrix) <- c("Gene", sprintf("%s", sample.id)) -->
+<!--     count.matrix[[condition]][[sample.id]] <- tmp.count.matrix -->
+<!--     pseudobulk.matrix <- merge(pseudobulk.matrix, tmp.count.matrix, by.x = "Gene", by.y = "Gene", all.x = FALSE) -->
+<!--   } -->
+<!-- } -->
+
+<!-- pseudobulk.matrix <- pseudobulk.matrix %>% column_to_rownames("Gene") -->
+<!-- pseudo_metadata <- data.frame(sample.id = colnames(pseudobulk.matrix)) %>% -->
+<!--   rowwise() %>% -->
+<!--   mutate(group = ifelse( grepl("LV", sample.id), "LV", "PV")) -->
+
+<!-- pseudo_metadata$group <- factor(pseudo_metadata$group, levels = c(condition1, condition2)) -->
+
+<!-- dds <- DESeqDataSetFromMatrix(pseudobulk.matrix,  -->
+<!--                               colData = pseudo_metadata,  -->
+<!--                               design = ~ group) -->
+
+<!-- dds <- DESeq(dds) -->
+<!-- contrast <- c("group", levels(pseudo_metadata$group)[1], levels(pseudo_metadata$group)[2]) -->
+
+<!-- res <- results(dds,  -->
+<!--                contrast = contrast, -->
+<!--                alpha = 0.05) -->
+
+<!-- resdf <- res %>% -->
+<!--   data.frame() %>% rownames_to_column("Gene") -->
+
+<!-- padj_cutoff <- 0.05 -->
+<!-- logFC_cutoff <- 1 -->
+
+<!-- normalized_counts <- counts(dds, normalized = TRUE) %>% as.data.frame() %>% rownames_to_column("Gene") -->
+<!-- resdf <- merge(resdf, normalized_counts, by.x = "Gene", by.y = "Gene") %>% -->
+<!--   mutate(abslog2FoldChange = abs(log2FoldChange)) %>% -->
+<!--   mutate(sig = ifelse(padj <= padj_cutoff & abslog2FoldChange >= logFC_cutoff, "sig.diff", "nonsig.diff"))  -->
+
+<!-- resdf.sigOnly <- subset(resdf, resdf$padj <= padj_cutoff & resdf$abslog2FoldChange >= logFC_cutoff) %>% arrange(desc(log2FoldChange)) -->
+<!-- heatmap.input <- rbind(head(resdf.sigOnly, 10), tail(resdf.sigOnly, 10))[, c("Gene", pseudo_metadata$sample.id)] -->
+
+<!-- heatmap.top50.input <- rbind(head(resdf.sigOnly, 50), tail(resdf.sigOnly, 50))[, c("Gene", pseudo_metadata$sample.id)] -->
+
+<!-- heatmap.full.input <-resdf.sigOnly[, c("Gene", pseudo_metadata$sample.id)] %>% column_to_rownames("Gene") -->
+<!-- heatmap.full.input.scaled <- (heatmap.full.input - rowSums(heatmap.full.input))/rowSds(as.matrix(heatmap.full.input))  -->
+
+<!-- heatmap.full.input.scaled <- heatmap.full.input.scaled %>% rownames_to_column("Gene")  -->
+<!-- heatmap.full.input.scaled <- merge(heatmap.full.input.scaled, subset(resdf.sigOnly, select = c(Gene, padj, log2FoldChange, abslog2FoldChange)), -->
+<!--                                    by.x = "Gene", by.y = "Gene") %>% arrange(desc(log2FoldChange)) -->
+<!-- ``` -->
+
+
+# Diffferential surface marker expression analysis
+
+We perform differential gene expression analysis for each cell type between all LV samples vs all PV samples. 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+if (file.exists(file.path(path.to.03.output, "diff_surface_markers.rds")) == FALSE){
+  diff.surface.markers <- hash()
+  raw.diff.surface.markers <- hash()
+  
+  DefaultAssay(s.obj) <- "ADT"
+  s.obj <- NormalizeData(s.obj)
+  for (input.celltype in unique(s.obj$seurat_clusters)){
+    subset.s.obj <- subset(s.obj, seurat_clusters == input.celltype)
+    
+    tmp <- FindMarkers(object = subset.s.obj, assay = "ADT", ident.1 = "LV", ident.2 = "PV", group.by = "stage", slot = "data", test.use = "wilcox")
+    tmp.raw <- tmp %>% rownames_to_column("Gene")
+    tmp <- tmp %>%
+      rownames_to_column("Gene") %>%
+      subset(p_val_adj <= 0.05) %>%
+      rowwise() %>%
+      mutate(abs_log2FC = abs(avg_log2FC)) %>%
+      arrange(desc(abs_log2FC))
+    diff.surface.markers[[input.celltype]] <- tmp
+    raw.diff.surface.markers[[input.celltype]] <- tmp.raw
+  }
+  
+  saveRDS(diff.surface.markers, file.path(path.to.03.output, "diff_surface_markers.rds"))
+  saveRDS(raw.diff.surface.markers, file.path(path.to.03.output, "raw_diff_surface_markers.rds"))
+} else {
+  diff.surface.markers <- readRDS(file.path(path.to.03.output, "diff_surface_markers.rds"))
+  raw.diff.surface.markers <- readRDS(file.path(path.to.03.output, "raw_diff_surface_markers.rds"))
+}
+
+```
+
+## Tables {.tabset}
+```{r echo=FALSE, results='asis', include=FALSE}
+diff.surface.markers$DC1 %>% create_dt()
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+
+for (cluster.id in names(diff.surface.markers)){
+  tmp.table <- diff.surface.markers[[cluster.id]]
+  cat(paste("\n\n### Cluster: ", cluster.id, "##\n"))
+  print( htmltools::tagList(datatable(tmp.table, extensions = 'Buttons',
+                filter = "top",
+                options = list(dom = 'Blfrtip',
+                               buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+                               lengthMenu = list(c(10,25,50,-1),
+                                                 c(10,25,50,"All")),
+                               columnDefs = list(list(
+                                 targets = "_all",
+                                 render = JS(
+                                   "function(data, type, row, meta) {",
+                                   "return type === 'display' && data != null && data.length > 100 ?",
+                                   "'<span title=\"' + data + '\">' + data.substr(0, 100) + '...</span>' : data;",
+                                   "}")
+                               ))
+                ))))
+  cat("\n \n")  
+}
+```
+
+
+## Dot plot, all samples grouped by condition {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in names(diff.surface.markers)){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- diff.surface.markers[[cluster.id]] 
+  if (nrow(tmp.cluster.markers) != 0){
+    tmp.cluster.markers <- tmp.cluster.markers %>% arrange(desc(abs_log2FC))
+    Idents(s.obj) <- "stage"
+    p <- DotPlot(object = subset(s.obj, seurat_clusters == cluster.id), features = head(tmp.cluster.markers, 12)$Gene)  
+  } else{
+    p <- ggplot() + ggtitle("No differentially expressed gene to show.")
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Dot plot, each sample {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in names(diff.surface.markers)){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- diff.surface.markers[[cluster.id]] 
+  if (nrow(tmp.cluster.markers) != 0){
+    tmp.cluster.markers <- tmp.cluster.markers %>% arrange(desc(abs_log2FC))
+    Idents(s.obj) <- "name"
+    p <- DotPlot(object = subset(s.obj, seurat_clusters == cluster.id), features = head(tmp.cluster.markers, 12)$Gene)  
+  } else{
+    p <- ggplot() + ggtitle("No differentially expressed gene to show.")
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Violin plot, all samples grouped by condition {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in names(diff.surface.markers)){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- diff.surface.markers[[cluster.id]] 
+  if (nrow(tmp.cluster.markers) != 0){
+    tmp.cluster.markers <- tmp.cluster.markers %>% arrange(desc(abs_log2FC))
+    Idents(s.obj) <- "stage"
+    p <- VlnPlot(object = subset(s.obj, seurat_clusters == cluster.id), features = head(tmp.cluster.markers, 12)$Gene, pt.size = 0)  
+  } else{
+    p <- ggplot() + ggtitle("No differentially expressed gene to show.")
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+## Violin plot, each sample {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+for (cluster.id in names(diff.surface.markers)){
+  DefaultAssay(s.obj) <- "ADT"
+  cat(sprintf("### Cluster %s \n", cluster.id))
+  tmp.cluster.markers <- diff.surface.markers[[cluster.id]] 
+  if (nrow(tmp.cluster.markers) != 0){
+    tmp.cluster.markers <- tmp.cluster.markers %>% arrange(desc(abs_log2FC))
+    Idents(s.obj) <- "name"
+    p <- VlnPlot(object = subset(s.obj, seurat_clusters == cluster.id), features = head(tmp.cluster.markers, 12)$Gene, pt.size = 0)  
+  } else{
+    p <- ggplot() + ggtitle("No differentially expressed gene to show.")
+  }
+  print(p)
+  cat("\n \n")
+}
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+```
