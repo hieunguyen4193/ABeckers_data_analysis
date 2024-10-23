@@ -407,7 +407,8 @@ counts.adt <- GetAssayData(s.obj, slot = "counts", assay = "ADT")
 s.obj.HTO <- CreateSeuratObject(counts = counts.adt, assay = "HTO")
 
 s.obj.HTO <- NormalizeData(s.obj.HTO, normalization.method = "CLR")
-
+s.obj.HTO <- NormalizeData(s.obj.HTO, normalization.method = "CLR", margin = 2)
+s.obj.HTO <- ScaleData(s.obj.HTO)
 ```
 
 ## Histogram: Raw count number of hashtags per cell {.tabset}
