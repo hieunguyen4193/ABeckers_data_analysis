@@ -16,7 +16,12 @@ source(file.path(path.to.pipeline.src, "scRNA_GEX_pipeline.R"))
 path.to.storage <- "/media/hieunguyen/HD01/storage"
 path2input <- file.path(path.to.storage, PROJECT, batch.id)
 outdir <- "/home/hieunguyen/CRC1382/outdir"
-path.to.output <- file.path(outdir, PROJECT, batch.id)
+# output.version <- "default"
+output.version <- "v0.1"
+
+source("/home/hieunguyen/CRC1382/src_2023/ABeckers/config.R")
+
+path.to.output <- file.path(outdir, PROJECT, batch.id, output.version)
 dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
 
 # _____stage lst for single sample_____
@@ -66,19 +71,15 @@ rerun <- list(s1 = FALSE,
               s9 = FALSE)
 
 
-filter.thresholds <- list(nFeatureRNAfloor = NULL,
-                          nFeatureRNAceiling = NULL,
-                          nCountRNAfloor = NULL, 
-                          nCountRNAceiling = NULL,
-                          pct_mitofloor = NULL, 
-                          pct_mitoceiling = 10,
-                          pct_ribofloor = NULL, 
-                          pct_riboceiling = NULL,
-                          ambientRNA_thres = 0.5)
+filter.thresholds <- all.config.params[[output.version]]
+
+print("Using the following configurations:")
+for (i in names(filter.thresholds)){
+  print(sprintf("Param %s: %s", i, filter.thresholds[[i]]))
+}
 
 remove_doublet <- FALSE
 path.to.10X.doublet.estimation <- "/media/hieunguyen/HD01/storage/DoubletEstimation10X.csv"
-
 
 num.PCA <- 30
 num.PC.used.in.UMAP <- 30
@@ -86,6 +87,7 @@ num.PC.used.in.Clustering <- 30
 
 num.dim.integration <- 30
 num.dim.cluster <- 30
+cluster.resolution <- 0.8
 
 filtered.barcodes <- NULL
 
@@ -112,7 +114,7 @@ s.obj <- run_pipeline_GEX(path2src=path2src,
                           path.to.count.clonaltype=path.to.count.clonaltype,
                           input.method = "CITESEQ",
                           my_random_seed = my_random_seed,
-                          cluster.resolution = 0.8, 
+                          cluster.resolution = cluster.resolution, 
                           num.dim.integration = num.dim.integration,
                           sw = sw, with.TSNE = TRUE)
 

@@ -16,15 +16,16 @@ PROJECT <- "ABeckers_data"
 path.to.storage <- "/media/hieunguyen/HD01/storage"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
 path.to.rmd <- file.path(path.to.project.src, "01_preliminary_analysis.Rmd")
-
+output.version <- "v0.1"
 for (batch.id in c("batch1", "batch2")){
   save.html.name <- str_replace(basename(path.to.rmd), ".Rmd", sprintf(".%s.html", batch.id))
-  path.to.save.html <- file.path(outdir, PROJECT, batch.id, "html_outputs")
+  path.to.save.html <- file.path(outdir, PROJECT, batch.id, "html_outputs", output.version)
   dir.create(path.to.save.html, showWarnings = FALSE, recursive = TRUE)
   
   rmarkdown::render(input = path.to.rmd, 
                     params = list(
-                      batch.id = batch.id
+                      batch.id = batch.id,
+                      output.version = output.version
                     ),
                     output_file = save.html.name, 
                     output_dir = path.to.save.html)

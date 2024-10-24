@@ -15,6 +15,7 @@ output:
     theme: lumen
 params:
   batch.id: NA
+  output.version: NA
 ---
 
 
@@ -63,13 +64,16 @@ PROJECT <- "ABeckers_data"
 path.to.storage <- "/media/hieunguyen/HD01/storage"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
 # batch.id <- "batch2"
-batch.id <- params$batch.id
+# output.version <- "v0.1"
 
-path.to.main.input <- file.path(outdir, PROJECT, batch.id)
+batch.id <- params$batch.id
+output.version <- params$output.version
+
+path.to.main.input <- file.path(outdir, PROJECT, batch.id, output.version)
 s.obj <- readRDS(file.path(path.to.main.input, "s8_output", sprintf("%s.output.s8.rds", PROJECT)))
 s.obj <- subset(s.obj, Doublet_classifications == "Singlet")
 
-path.to.main.output <- file.path(path.to.main.input, "data_analysis")
+path.to.main.output <- file.path(path.to.main.input, "data_analysis", output.version)
 dir.create(path.to.main.output, showWarnings = FALSE, recursive = TRUE)
 
 path.to.01.output <- file.path(path.to.main.output, "01_output")

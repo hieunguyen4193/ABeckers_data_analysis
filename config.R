@@ -1,0 +1,20 @@
+all.config.params <- list(
+  default = list(nFeatureRNAfloor = NULL,
+                 nFeatureRNAceiling = NULL,
+                 nCountRNAfloor = NULL, 
+                 nCountRNAceiling = NULL,
+                 pct_mitofloor = NULL, 
+                 pct_mitoceiling = 10,
+                 pct_ribofloor = NULL, 
+                 pct_riboceiling = NULL,
+                 ambientRNA_thres = 0.5),
+  v0.1 = list(nFeatureRNAfloor = NULL,
+              nFeatureRNAceiling = NULL,
+              nCountRNAfloor = NULL, 
+              nCountRNAceiling = NULL,
+              pct_mitofloor = NULL, 
+              pct_mitoceiling = 25,
+              pct_ribofloor = NULL, 
+              pct_riboceiling = NULL,
+              ambientRNA_thres = 0.5)
+)

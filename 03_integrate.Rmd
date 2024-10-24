@@ -56,18 +56,18 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 #####----------------------------------------------------------------------#####
 PROJECT <- "ABeckers_data"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
-
+output.version <- "v0.1"
 # install.packages("https://cran.r-project.org/src/contrib/Archive/knitr/knitr_1.45.tar.gz", type = "source", repos = NULL)
 # install.packages("https://cran.r-project.org/src/contrib/Archive/rmarkdown/rmarkdown_2.26.tar.gz", type = "source", repos = NULL)
 
 path.to.main.input <- file.path(outdir, PROJECT)
 
-path.to.main.output <- file.path(path.to.main.input, "data_analysis")
-path.to.03.output <- file.path(path.to.main.output, "03_output")
+path.to.main.output <- file.path(path.to.main.input, "data_analysis", output.version)
+path.to.03.output <- file.path(path.to.main.output, "03_output", output.version)
 dir.create(path.to.03.output, showWarnings = FALSE, recursive = TRUE)
 
-s.obj.batch1 <- readRDS(file.path(outdir, PROJECT, "batch1", "data_analysis", "01_output", "batch1.rds"))
-s.obj.batch2 <- readRDS(file.path(outdir, PROJECT, "batch2", "data_analysis", "01_output", "batch2.rds"))
+s.obj.batch1 <- readRDS(file.path(outdir, PROJECT, "batch1", output.version, "data_analysis", output.version, "01_output", "batch1.rds"))
+s.obj.batch2 <- readRDS(file.path(outdir, PROJECT, "batch2", output.version, "data_analysis", output.version, "01_output", "batch2.rds"))
 ```
 
 # UMAP of 2 datasets

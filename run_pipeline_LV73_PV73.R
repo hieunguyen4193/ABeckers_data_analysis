@@ -13,6 +13,8 @@ path.to.storage <- "/media/hieunguyen/HD01/storage"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
 path.to.output <- file.path(outdir, PROJECT, "batch2")
 dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
+source("/home/hieunguyen/CRC1382/src_2023/ABeckers/config.R")
+output.version <- "v0.1"
 
 # __________GEX DATA ANALYSIS PIPELINE__________
 path.to.pipeline.src <- "/home/hieunguyen/CRC1382/src_2023/src_pipeline/scRNA_GEX_pipeline"
@@ -22,7 +24,7 @@ source(file.path(path2src, "import_libraries.R"))
 source(file.path(path.to.pipeline.src, "scRNA_GEX_pipeline.R"))
 
 path2input <- file.path(path.to.storage, PROJECT, batch.id)
-path.to.output <- file.path(outdir, PROJECT, batch.id)
+path.to.output <- file.path(outdir, PROJECT, batch.id, output.version)
 # _____stage lst for single sample_____
 stage_lst <- list()
 
@@ -68,15 +70,12 @@ rerun <- list(s1 = FALSE,
               s9 = FALSE)
 
 
-filter.thresholds <- list(nFeatureRNAfloor = NULL,
-                          nFeatureRNAceiling = NULL,
-                          nCountRNAfloor = NULL, 
-                          nCountRNAceiling = NULL,
-                          pct_mitofloor = NULL, 
-                          pct_mitoceiling = 10,
-                          pct_ribofloor = NULL, 
-                          pct_riboceiling = NULL,
-                          ambientRNA_thres = 0.5)
+filter.thresholds <- all.config.params[[output.version]]
+
+print("Using the following configurations:")
+for (i in names(filter.thresholds)){
+  print(sprintf("Param %s: %s", i, filter.thresholds[[i]]))
+}
 
 remove_doublet <- FALSE
 path.to.10X.doublet.estimation <- "/media/hieunguyen/HD01/storage/DoubletEstimation10X.csv"
