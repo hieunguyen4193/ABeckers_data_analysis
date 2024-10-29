@@ -80,7 +80,8 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 # CONFIGURATIONS AND PREPRATIONS
 #####----------------------------------------------------------------------#####
 path.to.main.input <- "/media/hieunguyen/CRC1382H/CRC1382/outdir/AGBerres/220311_Berres_MiedIII_scCITEseq"
-s.obj <- readRDS(file.path(path.to.main.input, "s8_output", "AGBerres_4_samples_LV_PV.output.s8.rds"))
+# s.obj <- readRDS(file.path(path.to.main.input, "s8_output", "AGBerres_4_samples_LV_PV.output.s8.rds"))
+s.obj <- readRDS("/media/hieunguyen/HD01/outdir/CRC1382/AGBerres/220311_Berres_MiedIII_scCITEseq/s8_output/AGBerres_4_samples_LV_PV.output.s8.rds")
 s.obj <- subset(s.obj, Doublet_classifications == "Singlet")
 
 path.to.main.output <- file.path(path.to.main.input, "data_analysis")
@@ -90,6 +91,7 @@ path.to.01.output <- file.path(path.to.main.output, "01_output")
 dir.create(path.to.01.output, showWarnings = FALSE)
 
 cluster.markers <- readRDS(file.path(path.to.main.input, "s9_output", "AGBerres_4_samples_LV_PV.clusterMarkers.s9.rds"))
+
 cluster.markers <- cluster.markers$diff.markers %>% subset(p_val_adj <= 0.05)
 #####----------------------------------------------------------------------#####
 # Transfering annotation from the previous analysis

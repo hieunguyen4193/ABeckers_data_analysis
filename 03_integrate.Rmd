@@ -399,6 +399,29 @@ for (g in all.surface.markers){
 }
 ```
 
+# Some marker genes (28.10.2024)
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
+DefaultAssay(s.obj) <- "RNA"
+new.markerdf <- readxl::read_excel("/home/hieunguyen/CRC1382/src_2023/ABeckers/marker_gene_alias.xlsx")
+new.markers <- c(
+  new.markerdf$Gene %>% unique(),
+  new.markerdf$alias %>% unique()
+)
+new.markers <- new.markers[is.na(new.markers) == FALSE]
+new.markers <- to_vec(
+  for (item in new.markers) str_replace_all(str_squish(item), " ", "") %>% str_squish()
+)
+new.markers <- intersect(new.markers, row.names(s.obj))
+for (g in unique(new.markers)){
+  dir.create(file.path(path.to.03.output, "alias_marker_gene_plots"), showWarnings = FALSE, recursive = TRUE)
+  DefaultAssay(s.obj) <- "RNA"
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
+  ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "alias_marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+  ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "alias_marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
+}
+```
+
 # Hashtag-Antibodies data (ADT)
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
 DefaultAssay(s.obj) <- "ADT"

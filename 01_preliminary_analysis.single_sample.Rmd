@@ -1,5 +1,5 @@
 ---
-title: "Preliminary analysis Sample PV73, LV73"
+title: "Preliminary analysis sample `r params$sample.id`"
 author:
   - "trnguyen@ukaachen.de"
 date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
@@ -14,8 +14,8 @@ output:
     number_sections: true
     theme: lumen
 params:
-  batch.id: NA
   output.version: NA
+  sample.id: NA
 ---
 
 
@@ -60,20 +60,18 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 #####----------------------------------------------------------------------#####
 # CONFIGURATIONS AND PREPRATIONS
 #####----------------------------------------------------------------------#####
-PROJECT <- "ABeckers_data"
+PROJECT <- "ABeckers_data_single_samples"
 path.to.storage <- "/media/hieunguyen/HD01/storage"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
 
-# batch.id <- "batch1"
-batch.id <- "batch2"
-# output.version <- "v0.1"
-output.version <- "default"
+sample.id <- params$sample.id
+output.version <- params$output.version
 
-# batch.id <- params$batch.id
-# output.version <- params$output.version
+# sample.id <- "LV20"
+# output.version <- "default"
 
-path.to.main.input <- file.path(outdir, PROJECT, batch.id, output.version)
-s.obj <- readRDS(file.path(path.to.main.input, "s8_output", sprintf("%s.output.s8.rds", PROJECT)))
+path.to.main.input <- file.path(outdir, PROJECT, sample.id, output.version)
+s.obj <- readRDS(file.path(path.to.main.input, "s8a_output", sprintf("%s.output.s8a.rds", str_replace(PROJECT, "_single_samples", ""))))
 s.obj <- subset(s.obj, Doublet_classifications == "Singlet")
 
 path.to.main.output <- file.path(path.to.main.input, "data_analysis", output.version)
@@ -103,7 +101,7 @@ if (file.exists(file.path(path.to.01.output, "DE_cluster_surface_marker.rds")) =
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=18}
 ##### Add TSNE
-s.obj <- RunTSNE(s.obj, reduction = "INTE_PCA", dims = 1:30, reduction.name="INTE_TSNE")
+s.obj <- RunTSNE(s.obj, reduction = "RNA_PCA", dims = 1:30, reduction.name="RNA_TSNE")
 ```
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=18}
@@ -202,34 +200,34 @@ for (plot.item in c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.ribo"))
 
 ### % Mitochondrial
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-FeaturePlot(object = s.obj, reduction = "INTE_TSNE", feature = "percent.mt", label = TRUE, label.size = 8, pt.size = 0.5, label.color = "red", )
+FeaturePlot(object = s.obj, reduction = "RNA_TSNE", feature = "percent.mt", label = TRUE, label.size = 8, pt.size = 0.5, label.color = "red", )
 ```
 
 ### % Ribosome
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-FeaturePlot(object = s.obj, reduction = "INTE_TSNE", feature = "percent.ribo", label = TRUE, label.size = 8, pt.size = 0.5, label.color = "red", )
+FeaturePlot(object = s.obj, reduction = "RNA_TSNE", feature = "percent.ribo", label = TRUE, label.size = 8, pt.size = 0.5, label.color = "red", )
 ```
 
 ### % nCount RNA
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-FeaturePlot(object = s.obj, reduction = "INTE_TSNE", feature = "nCount_RNA", label = TRUE, label.size = 8, pt.size = 0.5, label.color = "red", )
+FeaturePlot(object = s.obj, reduction = "RNA_TSNE", feature = "nCount_RNA", label = TRUE, label.size = 8, pt.size = 0.5, label.color = "red", )
 ```
 
 ### % nGenes 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-FeaturePlot(object = s.obj, reduction = "INTE_TSNE", feature = "nFeature_RNA", label = TRUE, label.size = 8, pt.size = 0.5, label.color = "red", )
+FeaturePlot(object = s.obj, reduction = "RNA_TSNE", feature = "nFeature_RNA", label = TRUE, label.size = 8, pt.size = 0.5, label.color = "red", )
 ```
 
 ## Cell cycle scoring {.tabset}
 
 ### Cell cycle, split by Phase
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-DimPlot(s.obj, reduction = "INTE_TSNE", split.by = "Phase")
+DimPlot(s.obj, reduction = "RNA_TSNE", split.by = "Phase")
 ```
 
 ### Cell cycle, group by Phase
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-DimPlot(s.obj, reduction = "INTE_TSNE", group.by = "Phase", label = TRUE, label.size = 8, pt.size = 0.5, label.box = TRUE, repel = TRUE)
+DimPlot(s.obj, reduction = "RNA_TSNE", group.by = "Phase", label = TRUE, label.size = 8, pt.size = 0.5, label.box = TRUE, repel = TRUE)
 ```
 
 ### PCA, cell cycle, group by Phase
@@ -248,60 +246,12 @@ DimPlot(s.obj, reduction = "CELLCYCLED_PCA", group.by = "Phase", pt.size = 1)
 
 ## TSNE: all clusters 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE) + 
+DimPlot(object = s.obj, reduction = "RNA_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE) + 
   ggtitle(sprintf("TSNE: All clusters")) +
   theme(axis.text = element_text(size=20, face = "bold"),
         axis.title = element_text(size=20, face = "bold"), 
         title = element_text(size = 20, face = "bold"))
 ```
-
-## TSNE: all samples
-```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE, group.by = "name") + 
-  ggtitle(sprintf("TSNE Sample: All samples after integrating")) +
-  theme(axis.text = element_text(size=20, face = "bold"),
-        axis.title = element_text(size=20, face = "bold"), 
-        title = element_text(size = 20, face = "bold"))
-```
-
-## TSNE: LV samples
-```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-DimPlot(object = subset(s.obj, stage == "LV"), reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE, group.by = "name") + 
-  ggtitle(sprintf("TSNE Sample: All samples after integrating")) +
-  theme(axis.text = element_text(size=20, face = "bold"),
-        axis.title = element_text(size=20, face = "bold"), 
-        title = element_text(size = 20, face = "bold"))
-```
-
-## TSNE: LV samples only, labeled by clusters
-```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-DimPlot(object = subset(s.obj, stage == "LV"), reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE, group.by = "seurat_clusters") + 
-  ggtitle(sprintf("TSNE Sample: All samples after integrating")) +
-  theme(axis.text = element_text(size=20, face = "bold"),
-        axis.title = element_text(size=20, face = "bold"), 
-        title = element_text(size = 20, face = "bold"))
-```
-
-
-## TSNE: PV samples
-```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-DimPlot(object =  subset(s.obj, stage == "PV"), reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE, group.by = "name") + 
-  ggtitle(sprintf("TSNE Sample: All samples after integrating")) +
-  theme(axis.text = element_text(size=20, face = "bold"),
-        axis.title = element_text(size=20, face = "bold"), 
-        title = element_text(size = 20, face = "bold"))
-```
-
-
-## TSNE: PV samples only, labeled by clusters
-```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-DimPlot(object = subset(s.obj, stage == "PV"), reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE, group.by = "seurat_clusters") + 
-  ggtitle(sprintf("TSNE Sample: All samples after integrating")) +
-  theme(axis.text = element_text(size=20, face = "bold"),
-        axis.title = element_text(size=20, face = "bold"), 
-        title = element_text(size = 20, face = "bold"))
-```
-
 
 # Hashtag-Antibodies data (ADT)
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
@@ -373,7 +323,6 @@ for (hashtag in rownames(s.obj.HTO[["HTO"]])){
 }
 ```
 
-
 ## Illustration by Violin plot {.tabset}
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=12, fig.height=12}
 
@@ -395,7 +344,7 @@ for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
   DefaultAssay(s.obj) <- "RNA"
   cat(sprintf("### Cluster %s \n", cluster.id))
   tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
-  p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = head(tmp.cluster.markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")  
+  p <- FeaturePlot(object = s.obj, reduction = "RNA_TSNE", features = head(tmp.cluster.markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")  
   print(p)
   cat("\n \n")
 }
@@ -468,7 +417,7 @@ for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
   if (nrow(tmp.cluster.surface_markers) == 0){
     p <- ggplot() + ggtitle("No different surface marker found in this cluster")
   } else {
-    p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = head(tmp.cluster.surface_markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")    
+    p <- FeaturePlot(object = s.obj, reduction = "RNA_TSNE", features = head(tmp.cluster.surface_markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")    
   }
   print(p)
   cat("\n \n")
@@ -561,10 +510,10 @@ marker.genedf %>% create_dt()
 if ("svglite" %in% installed.packages() == FALSE){
   install.packages("svglite")
 }
-for (g in unique(marker.genedf$Gene)){
+for (g in intersect(unique(marker.genedf$Gene), row.names(s.obj))){
   dir.create(file.path(path.to.01.output, "marker_gene_plots"), showWarnings = FALSE, recursive = TRUE)
   DefaultAssay(s.obj) <- "RNA"
-  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "RNA_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
   vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
   ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.01.output, "marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
   ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.01.output, "marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
@@ -574,13 +523,16 @@ DefaultAssay(s.obj) <- "ADT"
 s.obj <- NormalizeData(s.obj, normalization.method = "CLR", margin = 2)
 s.obj <- ScaleData(s.obj)
 all.surface.markers <- unique(row.names(s.obj))
-for (g in all.surface.markers){
+for (g in intersect(all.surface.markers, row.names(s.obj))){
   dir.create(file.path(path.to.01.output, "surface_marker_plots"), showWarnings = FALSE, recursive = TRUE)
-  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "RNA_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
   vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
   ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.01.output, "surface_marker_plots"), device = "svg", dpi = 300, width = 14, height = 10)
   ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.01.output, "surface_marker_plots"), device = "svg", dpi = 300, width = 14, height = 10)
 }
+
+# switch back to RNA assay. 
+DefaultAssay(s.obj) <- "RNA"
 ```
 
 # Some marker genes (28.10.2024)
@@ -606,56 +558,8 @@ for (g in unique(new.markers)){
 }
 ```
 
-# Add old annotations back to the data (28.10.2024)
-```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
-if (batch.id  == "batch1"){
-  cell.annotation <- c( `0`= "MoMac_0",
-                      `1`= "Momac_1",
-                      `2`= "MoMac_2",
-                      `3`= "DC3",
-                      `4`= "NCM",
-                      `5`= "DC1",
-                      `6`= "MoMac_6",
-                      `7`= "MoMac_7",
-                      `8`= "DC2",
-                      `9`= "pDC",
-                      `10`= "MDP 16+",
-                      `11`= "MDP",
-                      `12`= "MoMac_12",
-                      `13`= "CDP",
-                      `14`= "B-cell")
-  meta.data <- s.obj@meta.data %>% rownames_to_column("barcode")
-  meta.data <- meta.data %>% rowwise() %>%
-    mutate(celltype = cell.annotation[[seurat_clusters]]) %>%
-    column_to_rownames("barcode")
-  meta.data <- meta.data[row.names(s.obj@meta.data), ]
-  s.obj <- AddMetaData(object = s.obj, col.name = "celltype", metadata = meta.data$celltype)
-} else {
-  print("Working on batch2 dataset")
-  print("Perform data integration and transfer the label from batch 1 dataset to batch 2 dataset")
-  print("!!!!! The analysis for batch 1 must be run FIRST !!!!!")
-  s.obj.batch1 <- readRDS(file.path(path.to.01.output, sprintf("%s.rds", batch.id)))
-  s.obj.batch2 <- s.obj
-  s.obj.batch1 <- RunPCA(s.obj.batch1, npcs = num.PCA, verbose = FALSE, reduction.name="RNA_PCA")
-  s.obj.batch2 <- RunPCA(s.obj.batch2, npcs = num.PCA, verbose = FALSE, reduction.name="RNA_PCA")
-  integration.anchors <- FindTransferAnchors(reference = s.obj.batch1, query = s.obj.batch2,
-                                               dims = 1:25, reference.reduction = "RNA_PCA")
-  predictions <- TransferData(anchorset = integration.anchors, refdata = s.obj.batch1$celltype,
-                                dims = 1:25)
-  s.obj.batch2 <- AddMetaData(s.obj.batch2, metadata = predictions$predicted.id, col.name = "celltype")
-  s.obj <- s.obj.batch2
-}
-```
-
-```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
-DimPlot(object = s.obj, reduction = "INTE_TSNE", group.by = "celltype", label = TRUE, label.box = TRUE, repel = TRUE)
-```
-
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
-if (file.exists(file.path(path.to.01.output, sprintf("%s.rds", batch.id))) == FALSE){
-  saveRDS(s.obj, file.path(path.to.01.output, sprintf("%s.rds", batch.id)))  
+if (file.exists(file.path(path.to.01.output, sprintf("%s.rds", sample.id))) == FALSE){
+  saveRDS(s.obj, file.path(path.to.01.output, sprintf("%s.rds", sample.id)))  
 }
-```
-
-```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
 ```
