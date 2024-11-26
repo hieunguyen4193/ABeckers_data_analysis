@@ -67,14 +67,11 @@ outdir <- "/home/hieunguyen/CRC1382/outdir"
 sample.id <- params$sample.id
 output.version <- params$output.version
 
-# sample.id <- "LV20"
-# output.version <- "default"
-
-path.to.main.input <- file.path(outdir, PROJECT, sample.id, output.version)
+path.to.main.input <- file.path(outdir, PROJECT, output.version, sample.id)
 s.obj <- readRDS(file.path(path.to.main.input, "s8a_output", sprintf("%s.output.s8a.rds", str_replace(PROJECT, "_single_samples", ""))))
 s.obj <- subset(s.obj, Doublet_classifications == "Singlet")
 
-path.to.main.output <- file.path(path.to.main.input, "data_analysis", output.version)
+path.to.main.output <- file.path(path.to.main.input, "data_analysis")
 dir.create(path.to.main.output, showWarnings = FALSE, recursive = TRUE)
 
 path.to.01.output <- file.path(path.to.main.output, "01_output")
@@ -505,7 +502,6 @@ marker.genedf <- subset(marker.genedf, marker.genedf$Gene %in% avai.genes)
 marker.genedf %>% create_dt()
 ```
 
-
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
 if ("svglite" %in% installed.packages() == FALSE){
   install.packages("svglite")
@@ -551,7 +547,7 @@ new.markers <- intersect(new.markers, row.names(s.obj))
 for (g in unique(new.markers)){
   dir.create(file.path(path.to.01.output, "alias_marker_gene_plots"), showWarnings = FALSE, recursive = TRUE)
   DefaultAssay(s.obj) <- "RNA"
-  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "RNA_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
   vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
   ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.01.output, "alias_marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
   ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.01.output, "alias_marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
@@ -563,3 +559,138 @@ if (file.exists(file.path(path.to.01.output, sprintf("%s.rds", sample.id))) == F
   saveRDS(s.obj, file.path(path.to.01.output, sprintf("%s.rds", sample.id)))  
 }
 ```
+
+# Module scores
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+path.to.main.src <- "/home/hieunguyen/CRC1382/src_2023/ABeckers"
+tmpdf <- readxl::read_excel(file.path(path.to.main.src, "human DC genes.xlsx"))
+module.gene.list <- list() 
+for (g in colnames(tmpdf)){
+  tmp <- tmpdf[[g]] %>% unique()
+  module.gene.list[[g]] <- tmp[is.na(tmp) == FALSE]
+}
+
+for (input.list in names(module.gene.list)){
+    DefaultAssay(s.obj) <- "RNA"
+    s.obj <- AddModuleScore(object = s.obj, features = list(module.gene.list[[input.list]]), name = sprintf("%s_", input.list), ctrl = 50)
+}
+fake.module.gene.list <- to_vec(
+  for (item in names(module.gene.list)){
+    sprintf("%s_1", item)
+  }
+)
+library(viridis)
+if ("svglite" %in% installed.packages() == FALSE){
+  install.packages("svglite")
+}
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+reduction.name <- "RNA_TSNE"
+DefaultAssay(s.obj) <- "RNA"
+Idents(s.obj) <- "seurat_clusters"
+feature.plot <- FeaturePlot(object = s.obj, reduction = reduction.name, ncol = 3, features = fake.module.gene.list, pt.size = 1) &
+  scale_color_gradient(low = "lightgray", high = "#FF0000", na.value = "lightgray")
+
+violin.plot <- VlnPlot(object = s.obj, features = fake.module.gene.list, pt.size = 0)
+
+heatmapdf <- s.obj@meta.data[, c("seurat_clusters", fake.module.gene.list)] %>%
+  group_by(seurat_clusters) %>%
+  summarise(across(everything(), mean)) %>%
+  column_to_rownames("seurat_clusters")
+
+colors <- rev(RColorBrewer::brewer.pal(n = length(fake.module.gene.list), name = "RdBu"))
+colors.use <- grDevices::colorRampPalette(colors = colors)(100)
+
+heatmapdf.scaled <- (heatmapdf - rowMeans(heatmapdf))/rowSds(as.matrix(heatmapdf))
+colnames(heatmapdf.scaled) <- to_vec(
+  for (item in colnames(heatmapdf.scaled)){
+    str_split(item, "_")[[1]][[1]]
+  }
+)
+heatmap.plot <- heatmapdf.scaled %>% rownames_to_column("cluster") %>% 
+  pivot_longer(!cluster, names_to = "signature", values_to = "z_score") %>%
+  ggplot(aes(x = cluster, y = signature, fill = z_score)) + geom_tile() + 
+  scale_fill_distiller(palette = "RdBu") + 
+  theme(axis.text = element_text(size = 22))
+
+dir.create(file.path(path.to.01.output, "module_scores"), showWarnings = FALSE, recursive = TRUE)
+ggsave(plot = feature.plot, filename = sprintf("feature_plot_module_scores.svg"), 
+       path = file.path(path.to.01.output, "module_scores"), device = "svg", width = 20, height = 14)
+ggsave(plot = violin.plot, filename = sprintf("violin_plot_module_scores.svg"), 
+       path = file.path(path.to.01.output, "module_scores"), device = "svg", width = 20, height = 14)
+ggsave(plot = heatmap.plot, filename = sprintf("heatmap_module_scores.svg"), 
+       path = file.path(path.to.01.output, "module_scores"), device = "svg", width = 10, height = 10)
+```
+
+## Feature plot: module score on UMAP
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+feature.plot
+```
+
+## Violin plot
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+violin.plot
+```
+
+## Heatmap
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+heatmap.plot
+```
+
+## NEW GENE LIST 25.11.2024
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+gene.list <- c("SLAMF8", 
+               "CXCR3",
+               "CLNK",
+               "CD59",
+               "ANPEP",
+               "ID2",
+               "SELPLG",
+               "CD226",
+               "ZNF366",
+               "HLA-DPA1",
+               "NDRG2",
+               "LYZ",
+               "TLR3",
+               "CD1c",
+               "CD1",
+               "FCER1A",
+               "LILRA2",
+               "TLR2",
+               "ITGAM",
+               "FCGR2A",
+               "TLR4",
+               "VCAN",
+               "MAFB",
+               "VEGFA",
+               "ANXA1",
+               "EMR1",
+               "CSF3R",
+               "FCGR1A")
+gene.list <- intersect(gene.list, row.names(s.obj))
+group.gene.list <- split(gene.list, seq(1, length(gene.list)/8))
+```
+
+### Feature plot {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+for (g in names(group.gene.list)){
+ cat(sprintf("#### Group %s \n", g))
+ p <- feature.plot <- FeaturePlot(object = s.obj, reduction = reduction.name, ncol = 3, features = group.gene.list[[g]], pt.size = 1, label = TRUE) &
+  scale_color_gradient(low = "lightgray", high = "#FF0000", na.value = "lightgray") 
+ print(p)
+ cat("\n \n")
+}
+```
+
+### Violin plot
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+for (g in names(group.gene.list)){
+  cat(sprintf("#### Group %s \n", g))
+  p <- VlnPlot(object = s.obj, features = group.gene.list[[g]], pt.size = 0)
+  print(p)
+  cat("\n \n")
+}
+```
+
+

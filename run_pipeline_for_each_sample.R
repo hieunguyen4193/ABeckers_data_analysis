@@ -21,7 +21,7 @@ for (output.version in c("default", "v0.1")){
     source(file.path(path.to.pipeline.src, "scRNA_GEX_pipeline.R"))
     
     path2input <- file.path(path.to.storage, PROJECT, "single_samples", sample.id)
-    path.to.output <- file.path(outdir, sprintf("%s_%s", PROJECT, "single_samples"), sample.id, output.version)
+    path.to.output <- file.path(outdir, sprintf("%s_%s", PROJECT, "single_samples"), output.version, sample.id)
     dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
     
     # _____stage lst for single sample_____

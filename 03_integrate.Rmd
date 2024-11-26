@@ -1,5 +1,5 @@
 ---
-title: "Integrate old and new datasets"
+title: "Integrate old and new datasets, `r params$output.version`"
 author:
   - "trnguyen@ukaachen.de"
 date: "Last update on `r format(Sys.time(), '%d %B, %Y')`"
@@ -13,6 +13,8 @@ output:
     toc_depth: 3
     number_sections: true
     theme: lumen
+params:
+  output.version: NA
 ---
 
 
@@ -41,8 +43,8 @@ script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='hide', fig.height=10, fig.width=14}
 ##### clean up #####
-gc()
-rm(list = ls())
+# gc()
+# rm(list = ls())
 
 path.to.project.src <- "/home/hieunguyen/CRC1382/src_2023/ABeckers"
 source(file.path(path.to.project.src, "00_import_libraries.R"))
@@ -56,18 +58,23 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 #####----------------------------------------------------------------------#####
 PROJECT <- "ABeckers_data"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
-output.version <- "v0.1"
+
+output.version <- params$output.version
+
+# output.version <- "default"
+# output.version <- "v0.1"
+# output.version <- "default"
 # install.packages("https://cran.r-project.org/src/contrib/Archive/knitr/knitr_1.45.tar.gz", type = "source", repos = NULL)
 # install.packages("https://cran.r-project.org/src/contrib/Archive/rmarkdown/rmarkdown_2.26.tar.gz", type = "source", repos = NULL)
 
 path.to.main.input <- file.path(outdir, PROJECT)
 
-path.to.main.output <- file.path(path.to.main.input, "data_analysis", output.version)
-path.to.03.output <- file.path(path.to.main.output, "03_output", output.version)
+path.to.main.output <- file.path(path.to.main.input, output.version, "integrated_data")
+path.to.03.output <- file.path(path.to.main.output, "03_output")
 dir.create(path.to.03.output, showWarnings = FALSE, recursive = TRUE)
 
-s.obj.batch1 <- readRDS(file.path(outdir, PROJECT, "batch1", output.version, "data_analysis", output.version, "01_output", "batch1.rds"))
-s.obj.batch2 <- readRDS(file.path(outdir, PROJECT, "batch2", output.version, "data_analysis", output.version, "01_output", "batch2.rds"))
+s.obj.batch1 <- readRDS(file.path(outdir, PROJECT, output.version, "batch1", "data_analysis", "01_output", "batch1.rds"))
+s.obj.batch2 <- readRDS(file.path(outdir, PROJECT, output.version, "batch2", "data_analysis", "01_output", "batch2.rds"))
 ```
 
 # UMAP of 2 datasets
@@ -894,5 +901,209 @@ for (cluster.id in names(diff.surface.markers)){
 }
 ```
 
+# Some marker genes, grouped by cell type
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+if (output.version == "default"){
+  p <- DimPlot(object = s.obj, reduction = "INTE_TSNE", group.by = "celltype", label = TRUE, label.box = TRUE)
+  print(p)
+}
 ```
+
+# Some marker genes for cell types, grouped by cell annotation
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=20, fig.height=12}
+if (output.version == "default"){
+  for (g in unique(marker.genedf$Gene)){
+    dir.create(file.path(path.to.03.output, "marker_gene_plots_grouped_by_annotation"), showWarnings = FALSE, recursive = TRUE)
+    DefaultAssay(s.obj) <- "RNA"
+    Idents(s.obj) <- "celltype"
+    umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+    vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "celltype", slot = "data")
+    ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "marker_gene_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
+    ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "marker_gene_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
+  }
+  
+  DefaultAssay(s.obj) <- "ADT"
+  s.obj <- NormalizeData(s.obj, normalization.method = "CLR", margin = 2)
+  s.obj <- ScaleData(s.obj)
+  all.surface.markers <- unique(row.names(s.obj))
+  for (g in all.surface.markers){
+    DefaultAssay(s.obj) <- "RNA"
+    Idents(s.obj) <- "celltype"
+    dir.create(file.path(path.to.03.output, "surface_marker_plots_grouped_by_annotation"), showWarnings = FALSE, recursive = TRUE)
+    umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+    vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "celltype", slot = "data")
+    ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "surface_marker_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
+    ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "surface_marker_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
+  }
+}
+
+```
+
+# Some marker genes (28.10.2024), grouped by cell annotation
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=10}
+if (output.version == "default"){
+  DefaultAssay(s.obj) <- "RNA"
+  new.markerdf <- readxl::read_excel("/home/hieunguyen/CRC1382/src_2023/ABeckers/marker_gene_alias.xlsx")
+  new.markers <- c(
+    new.markerdf$Gene %>% unique(),
+    new.markerdf$alias %>% unique()
+  )
+  new.markers <- new.markers[is.na(new.markers) == FALSE]
+  new.markers <- to_vec(
+    for (item in new.markers) str_replace_all(str_squish(item), " ", "") %>% str_squish()
+  )
+  new.markers <- intersect(new.markers, row.names(s.obj))
+  for (g in unique(new.markers)){
+    Idents(s.obj) <- "celltype"
+    dir.create(file.path(path.to.03.output, "alias_marker_gene_plots_grouped_by_annotation"), showWarnings = FALSE, recursive = TRUE)
+    DefaultAssay(s.obj) <- "RNA"
+    umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+    vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "celltype", slot = "data")
+    ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "alias_marker_gene_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
+    ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "alias_marker_gene_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
+  }
+}
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+DefaultAssay(s.obj) <- "RNA"
+check.genes <- c("HLA-DRB1", "HLA-DRA", "HLA-DRB5", "CLEC10A", "CD301", "CLECSF13", "CLECSF14", "HML", "HML2", "CD117", "KIT", 
+                 "C-Kit", "CD117", "PBT", "SCFR")
+intersect(row.names(s.obj), check.genes)
+```
+
+# Module scores
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+path.to.main.src <- "/home/hieunguyen/CRC1382/src_2023/ABeckers"
+tmpdf <- readxl::read_excel(file.path(path.to.main.src, "human DC genes.xlsx"))
+module.gene.list <- list() 
+for (g in colnames(tmpdf)){
+  tmp <- tmpdf[[g]] %>% unique()
+  module.gene.list[[g]] <- tmp[is.na(tmp) == FALSE]
+}
+
+for (input.list in names(module.gene.list)){
+    DefaultAssay(s.obj) <- "RNA"
+    s.obj <- AddModuleScore(object = s.obj, features = list(module.gene.list[[input.list]]), name = sprintf("%s_", input.list), ctrl = 50)
+}
+fake.module.gene.list <- to_vec(
+  for (item in names(module.gene.list)){
+    sprintf("%s_1", item)
+  }
+)
+library(viridis)
+if ("svglite" %in% installed.packages() == FALSE){
+  install.packages("svglite")
+}
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+reduction.name <- "INTE_TSNE"
+DefaultAssay(s.obj) <- "RNA"
+Idents(s.obj) <- "seurat_clusters"
+feature.plot <- FeaturePlot(object = s.obj, reduction = reduction.name, ncol = 3, features = fake.module.gene.list, pt.size = 1) &
+  scale_color_gradient(low = "lightgray", high = "#FF0000", na.value = "lightgray")
+
+violin.plot <- VlnPlot(object = s.obj, features = fake.module.gene.list, pt.size = 0)
+
+heatmapdf <- s.obj@meta.data[, c("seurat_clusters", fake.module.gene.list)] %>%
+  group_by(seurat_clusters) %>%
+  summarise(across(everything(), mean)) %>%
+  column_to_rownames("seurat_clusters")
+
+colors <- rev(RColorBrewer::brewer.pal(n = length(fake.module.gene.list), name = "RdBu"))
+colors.use <- grDevices::colorRampPalette(colors = colors)(100)
+
+heatmapdf.scaled <- (heatmapdf - rowMeans(heatmapdf))/rowSds(as.matrix(heatmapdf))
+colnames(heatmapdf.scaled) <- to_vec(
+  for (item in colnames(heatmapdf.scaled)){
+    str_split(item, "_")[[1]][[1]]
+  }
+)
+heatmap.plot <- heatmapdf.scaled %>% rownames_to_column("cluster") %>% 
+  pivot_longer(!cluster, names_to = "signature", values_to = "z_score") %>%
+  ggplot(aes(x = cluster, y = signature, fill = z_score)) + geom_tile() + 
+  scale_fill_distiller(palette = "RdBu") + 
+  theme(axis.text = element_text(size = 22))
+
+dir.create(file.path(path.to.03.output, "module_scores"), showWarnings = FALSE, recursive = TRUE)
+ggsave(plot = feature.plot, filename = sprintf("feature_plot_module_scores.svg"), 
+       path = file.path(path.to.03.output, "module_scores"), device = "svg", width = 20, height = 14)
+ggsave(plot = violin.plot, filename = sprintf("violin_plot_module_scores.svg"), 
+       path = file.path(path.to.03.output, "module_scores"), device = "svg", width = 20, height = 14)
+ggsave(plot = heatmap.plot, filename = sprintf("heatmap_module_scores.svg"), 
+       path = file.path(path.to.03.output, "module_scores"), device = "svg", width = 10, height = 10)
+```
+
+## Feature plot: module score on UMAP
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+feature.plot
+```
+
+## Violin plot
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+violin.plot
+```
+
+## Heatmap
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+heatmap.plot
+```
+
+
+## NEW GENE LIST 25.11.2024
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+gene.list <- c("SLAMF8", 
+               "CXCR3",
+               "CLNK",
+               "CD59",
+               "ANPEP",
+               "ID2",
+               "SELPLG",
+               "CD226",
+               "ZNF366",
+               "HLA-DPA1",
+               "NDRG2",
+               "LYZ",
+               "TLR3",
+               "CD1c",
+               "CD1",
+               "FCER1A",
+               "LILRA2",
+               "TLR2",
+               "ITGAM",
+               "FCGR2A",
+               "TLR4",
+               "VCAN",
+               "MAFB",
+               "VEGFA",
+               "ANXA1",
+               "EMR1",
+               "CSF3R",
+               "FCGR1A")
+gene.list <- intersect(gene.list, row.names(s.obj))
+group.gene.list <- split(gene.list, seq(1, length(gene.list)/8))
+```
+
+### Feature plot {.tabset}
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+for (g in names(group.gene.list)){
+ cat(sprintf("#### Group %s \n", g))
+ p <- feature.plot <- FeaturePlot(object = s.obj, reduction = reduction.name, ncol = 3, features = group.gene.list[[g]], pt.size = 1, label = TRUE) &
+  scale_color_gradient(low = "lightgray", high = "#FF0000", na.value = "lightgray") 
+ print(p)
+ cat("\n \n")
+}
+```
+
+### Violin plot
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
+for (g in names(group.gene.list)){
+  cat(sprintf("#### Group %s \n", g))
+  p <- VlnPlot(object = s.obj, features = group.gene.list[[g]], pt.size = 0)
+  print(p)
+  cat("\n \n")
+}
+```
+

@@ -20,16 +20,21 @@ path.to.rmd <- file.path(path.to.project.src, "01_preliminary_analysis.single_sa
 for (output.version in c("v0.1", "default")){
   for (sample.id in c("LV20", "PV20", "LV21", "PV21", "LV73", "PV73")){
     save.html.name <- str_replace(basename(path.to.rmd), ".Rmd", sprintf(".%s.html", sample.id))
-    path.to.save.html <- file.path(outdir, PROJECT, sample.id, "html_outputs", output.version)
+    path.to.save.html <- file.path(outdir, PROJECT, output.version, sample.id, "html_outputs")
     dir.create(path.to.save.html, showWarnings = FALSE, recursive = TRUE)
     
-    rmarkdown::render(input = path.to.rmd, 
-                      params = list(
-                        sample.id = sample.id,
-                        output.version = output.version
-                      ),
-                      output_file = save.html.name, 
-                      output_dir = path.to.save.html)
-  }
+    if (file.exists(file.path(path.to.save.html, save.html.name)) == FALSE){
+      print(sprintf("Sample ID %s", sample.id))
+      print(sprintf("output version: %s", output.version))
+      
+      rmarkdown::render(input = path.to.rmd, 
+                        params = list(
+                          sample.id = sample.id,
+                          output.version = output.version
+                        ),
+                        output_file = save.html.name, 
+                        output_dir = path.to.save.html)
+    }
+    }
 }
 
