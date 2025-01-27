@@ -83,13 +83,13 @@ s.obj.batch2 <- readRDS(file.path(outdir, PROJECT, output.version, "batch2", spr
 
 ## New dataset
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
-DimPlot(object = s.obj.batch2, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, repel = TRUE)
+DimPlot(object = s.obj.batch2, reduction = "INTE_UMAP", label = TRUE, label.box = TRUE, repel = TRUE)
 ```
 
 ## Previous dataset
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
-DimPlot(object = s.obj.batch1, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, repel = TRUE)
+DimPlot(object = s.obj.batch1, reduction = "INTE_UMAP", label = TRUE, label.box = TRUE, repel = TRUE)
 ```
 
 # Integration of the two datasets
@@ -128,10 +128,10 @@ if (file.exists(file.path(path.to.03.output, "merge_all_6_samples.RNA_assay.rds"
   s.obj <- ScaleData(s.obj, features = rownames(s.obj))
   
   s.obj <- RunPCA(s.obj, npcs = num.PCA, verbose = FALSE, reduction.name=sprintf("%s_PCA", chosen.assay))
+  s.obj <- RunTSNE (s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PCA, 
+                             reduction.name=sprintf("%s_UMAP", chosen.assay), seed.use = chosen.seed)
   s.obj <- RunUMAP(s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PCA, 
                              reduction.name=sprintf("%s_UMAP", chosen.assay), seed.use = chosen.seed)
-  s.obj <- RunTSNE(s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PCA, 
-                             reduction.name=sprintf("%s_TSNE", chosen.assay), seed.use = chosen.seed)
   
   s.obj <- FindNeighbors(s.obj, reduction = sprintf("%s_PCA", chosen.assay), dims = 1:num.PC.used.in.Clustering)
   
@@ -162,7 +162,7 @@ if (file.exists(file.path(path.to.03.output, "s8_output", "merge_all_6_samples_t
                            genes.to.not.run.PCA = NULL,
                            inte_pca_reduction_name = "INTE_PCA", 
                            inte_umap_reduction_name = "INTE_UMAP",
-                           with.TSNE = TRUE,
+                           with.UMAP = TRUE,
                            k.filter = 200)  
 } else {
   s.obj <- readRDS(file.path(path.to.03.output, "s8_output", "merge_all_6_samples_test_function.output.s8.rds"))
@@ -170,19 +170,19 @@ if (file.exists(file.path(path.to.03.output, "s8_output", "merge_all_6_samples_t
 
 ```
 
-## TSNE: all clusters 
+## UMAP: all clusters 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=12}
-DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE) + 
-  ggtitle(sprintf("TSNE: All clusters")) +
+DimPlot(object = s.obj, reduction = "INTE_UMAP", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE) + 
+  ggtitle(sprintf("UMAP: All clusters")) +
   theme(axis.text = element_text(size=20, face = "bold"),
         axis.title = element_text(size=20, face = "bold"), 
         title = element_text(size = 20, face = "bold"))
 ```
 
-## TSNE: all samples
+## UMAP: all samples
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.width=14, fig.height=12}
-DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE, group.by = "name") + 
-  ggtitle(sprintf("TSNE Sample: All samples after integrating")) +
+DimPlot(object = s.obj, reduction = "INTE_UMAP", label = TRUE, label.box = TRUE, label.size = 10, pt.size = 1, repel = TRUE, group.by = "name") + 
+  ggtitle(sprintf("UMAP Sample: All samples after integrating")) +
   theme(axis.text = element_text(size=20, face = "bold"),
         axis.title = element_text(size=20, face = "bold"), 
         title = element_text(size = 20, face = "bold"))
@@ -216,7 +216,7 @@ for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
   DefaultAssay(s.obj) <- "RNA"
   cat(sprintf("### Cluster %s \n", cluster.id))
   tmp.cluster.markers <- subset(cluster.markers, cluster.markers$cluster == cluster.id) %>% arrange(desc(avg_log2FC))
-  p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = head(tmp.cluster.markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")  
+  p <- FeaturePlot(object = s.obj, reduction = "INTE_UMAP", features = head(tmp.cluster.markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")  
   print(p)
   cat("\n \n")
 }
@@ -289,7 +289,7 @@ for (cluster.id in sort(unique(s.obj@meta.data$seurat_clusters))){
   if (nrow(tmp.cluster.surface_markers) == 0){
     p <- ggplot() + ggtitle("No different surface marker found in this cluster")
   } else {
-    p <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = head(tmp.cluster.surface_markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")    
+    p <- FeaturePlot(object = s.obj, reduction = "INTE_UMAP", features = head(tmp.cluster.surface_markers, 12)$gene, ncol = 3, label = TRUE, pt.size = 0.5, label.size = 5, label.color = "red")    
   }
   print(p)
   cat("\n \n")
@@ -388,7 +388,7 @@ if ("svglite" %in% installed.packages() == FALSE){
 for (g in unique(marker.genedf$Gene)){
   dir.create(file.path(path.to.03.output, "marker_gene_plots"), showWarnings = FALSE, recursive = TRUE)
   DefaultAssay(s.obj) <- "RNA"
-  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_UMAP", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
   vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
   ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
   ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
@@ -400,7 +400,7 @@ s.obj <- ScaleData(s.obj)
 all.surface.markers <- unique(row.names(s.obj))
 for (g in all.surface.markers){
   dir.create(file.path(path.to.03.output, "surface_marker_plots"), showWarnings = FALSE, recursive = TRUE)
-  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_UMAP", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
   vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
   ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "surface_marker_plots"), device = "svg", dpi = 300, width = 14, height = 10)
   ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "surface_marker_plots"), device = "svg", dpi = 300, width = 14, height = 10)
@@ -423,7 +423,7 @@ new.markers <- intersect(new.markers, row.names(s.obj))
 for (g in unique(new.markers)){
   dir.create(file.path(path.to.03.output, "alias_marker_gene_plots"), showWarnings = FALSE, recursive = TRUE)
   DefaultAssay(s.obj) <- "RNA"
-  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+  umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_UMAP", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
   vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "seurat_clusters", slot = "data")
   ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "alias_marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
   ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "alias_marker_gene_plots"), device = "svg", dpi = 300, width = 14, height = 10)
@@ -905,7 +905,7 @@ for (cluster.id in names(diff.surface.markers)){
 # Some marker genes, grouped by cell type
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
 if (output.version == "default"){
-  p <- DimPlot(object = s.obj, reduction = "INTE_TSNE", group.by = "celltype", label = TRUE, label.box = TRUE)
+  p <- DimPlot(object = s.obj, reduction = "INTE_UMAP", group.by = "celltype", label = TRUE, label.box = TRUE)
   print(p)
 }
 ```
@@ -917,7 +917,7 @@ if (output.version == "default"){
     dir.create(file.path(path.to.03.output, "marker_gene_plots_grouped_by_annotation"), showWarnings = FALSE, recursive = TRUE)
     DefaultAssay(s.obj) <- "RNA"
     Idents(s.obj) <- "celltype"
-    umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+    umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_UMAP", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
     vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "celltype", slot = "data")
     ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "marker_gene_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
     ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "marker_gene_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
@@ -931,7 +931,7 @@ if (output.version == "default"){
     DefaultAssay(s.obj) <- "RNA"
     Idents(s.obj) <- "celltype"
     dir.create(file.path(path.to.03.output, "surface_marker_plots_grouped_by_annotation"), showWarnings = FALSE, recursive = TRUE)
-    umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+    umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_UMAP", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
     vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "celltype", slot = "data")
     ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "surface_marker_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
     ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "surface_marker_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
@@ -958,7 +958,7 @@ if (output.version == "default"){
     Idents(s.obj) <- "celltype"
     dir.create(file.path(path.to.03.output, "alias_marker_gene_plots_grouped_by_annotation"), showWarnings = FALSE, recursive = TRUE)
     DefaultAssay(s.obj) <- "RNA"
-    umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_TSNE", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
+    umap.plot <- FeaturePlot(object = s.obj, reduction = "INTE_UMAP", features = c(g), label = TRUE, pt.size = 1.5, slot = "data")
     vln.plot <- VlnPlot(object = s.obj, features = c(g), group.by = "celltype", slot = "data")
     ggsave(plot = umap.plot, filename = sprintf("UMAP_plot_%s.svg", g), path = file.path(path.to.03.output, "alias_marker_gene_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
     ggsave(plot = vln.plot, filename = sprintf("Violin_plot_%s.svg", g), path = file.path(path.to.03.output, "alias_marker_gene_plots_grouped_by_annotation"), device = "svg", dpi = 300, width = 14, height = 10)
@@ -1000,7 +1000,7 @@ if ("svglite" %in% installed.packages() == FALSE){
 ```
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis', fig.height=10, fig.width=14}
-reduction.name <- "INTE_TSNE"
+reduction.name <- "INTE_UMAP"
 DefaultAssay(s.obj) <- "RNA"
 Idents(s.obj) <- "seurat_clusters"
 feature.plot <- FeaturePlot(object = s.obj, reduction = reduction.name, ncol = 3, features = fake.module.gene.list, pt.size = 1) &

@@ -19,11 +19,12 @@ outdir <- "/home/hieunguyen/CRC1382/outdir"
 
 # output.version <- "default"
 # output.version <- "v0.1"
+cluster.resolution <- 1
 
 for (output.version in c("default", "v0.1")){
   source("/home/hieunguyen/CRC1382/src_2023/ABeckers/config.R")
   
-  path.to.output <- file.path(outdir, PROJECT, output.version, batch.id)
+  path.to.output <- file.path(outdir, PROJECT, output.version, batch.id, sprintf("res_%s", cluster.resolution))
   dir.create(path.to.output, showWarnings = FALSE, recursive = TRUE)
   
   # _____stage lst for single sample_____
@@ -89,7 +90,6 @@ for (output.version in c("default", "v0.1")){
   
   num.dim.integration <- 30
   num.dim.cluster <- 30
-  cluster.resolution <- 0.8
   
   filtered.barcodes <- NULL
   

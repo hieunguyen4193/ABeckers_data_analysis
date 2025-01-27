@@ -15,8 +15,8 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 PROJECT <- "ABeckers_data"
 path.to.storage <- "/media/hieunguyen/HD01/storage"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
-path.to.rmd <- file.path(path.to.project.src, "03_integrate.Rmd")
-cluster.resolution <- 1
+path.to.rmd <- file.path(path.to.project.src, "03_integrate_UMAP.Rmd")
+cluster.resolution <- 0.8
 
 for (output.version in c("default", "v0.1")){
   save.html.name <- str_replace(basename(path.to.rmd), ".Rmd", sprintf(".%s.html", output.version))
@@ -38,7 +38,7 @@ for (output.version in c("default", "v0.1")){
                       output_file = save.html.name, 
                       output_dir = path.to.save.html)
   }
-
-}
   
+}
+
 

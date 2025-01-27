@@ -142,7 +142,6 @@ if (file.exists(file.path(path.to.03.output, "Maier_data_seurat_object.rds")) ==
   s.obj <- readRDS(file.path(path.to.03.output, "Maier_data_seurat_object.rds"))
 }
 
-
 ```
 
 

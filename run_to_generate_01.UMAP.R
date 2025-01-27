@@ -15,8 +15,9 @@ source(file.path(path.to.src, "s8_integration_and_clustering.R"))
 PROJECT <- "ABeckers_data"
 path.to.storage <- "/media/hieunguyen/HD01/storage"
 outdir <- "/home/hieunguyen/CRC1382/outdir"
-path.to.rmd <- file.path(path.to.project.src, "01_preliminary_analysis.Rmd")
-cluster.resolution <- 1
+path.to.rmd <- file.path(path.to.project.src, "01_preliminary_analysis_UMAP.Rmd")
+cluster.resolution <- 0.8
+
 for (batch.id in c("batch1", "batch2")){
   for (output.version in c("default", "v0.1")){
     print(sprintf("Working on batch %s, output.version: %s", output.version, batch.id))

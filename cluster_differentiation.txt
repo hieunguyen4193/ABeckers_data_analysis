@@ -1,0 +1,27 @@
+Cluster Differentiation:
+  
+  Cluster: 1, 4A, 6A, 7, 9A, 13 = cMo/cMo_M1
+  
+  Cluster: 4B, 6B, 9B, 10 = iMo_M2
+  
+  
+  Genes for Differentiation: expressed in Cluster iMo_M2, not or very low Expression in cMo/cMo_M1
+  
+  "CRIP1", "CD83", "HLA-DQB1", "HLA-DRB5", "HLA-DQA1", "JUNB", "VAV3", "RTM1", "TEX14", "SSBP2", "LRMDA", "PTCB1", "FCAR"
+  
+  
+  Cluster: 2A, 2B = cDC1
+  
+  Cluster: 3A, 3B = cDC3
+  
+  Cluster: 5      = pDC precursor
+  
+  Cluster: 8      = pDC 
+  
+  Cluster: 11	= cDC precursor
+  
+  Cluster: 12A	= cDC2B
+  
+  Cluster: 12B	= cDC2A
+  
+  
