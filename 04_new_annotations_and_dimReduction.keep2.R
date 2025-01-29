@@ -43,7 +43,6 @@ gene.list <- c( "CRIP1", "CD83", "HLA-DQB1", "HLA-DRB5", "HLA-DQA1", "JUNB", "VA
 DefaultAssay(s.obj) <- "RNA"
 s.obj <- AddModuleScore(object = s.obj, features = list(DiffGene = intersect(gene.list, row.names(s.obj))), name = sprintf("%s_", "DiffGene"), ctrl = 50)
 
-Idents(s.obj) <- "celltype"
 feature.plot.module.scores <- FeaturePlot(object = s.obj, 
                                           reduction = "INTE_TSNE", 
                                           label = TRUE, 
@@ -51,57 +50,79 @@ feature.plot.module.scores <- FeaturePlot(object = s.obj,
                                           pt.size = 0.5) &
   scale_color_gradient(low = "lightgray", high = "#FF0000", na.value = "lightgray")
 
-to.recluster <- c(
-  "MoMac_0", "MoMac_2", "MoMac_7"
-)
+VlnPlot(object = s.obj, features = c("DiffGene_1"))
 
 meta.data <- s.obj@meta.data %>% rownames_to_column("barcode") 
+meta.data$seurat_clusters <- as.numeric(meta.data$seurat_clusters)
 
-convert.celltype <- list(
-  `Momac_1` = "cMo/M2",
-  `DC3` = "cDC3",
-  `DC2` = "cDC2",
-  `NCM` = "cMo/M2",
-  `DC1`	= "cDC1",
-  `MoMac_6` = "cMo/M2",
-  `pDC` = "pDC",
-  `MDP 16+` = "pDC precursor",
-  `MDP` = "precursor",
-  `MoMac_12` = "cMo/M1",
-  `CDP` = "cDC precursor"
-  )
-
-tex14.exprs <- GetAssayData(object = s.obj, slot = "counts", assay = "RNA")["TEX14", ]
-tex14.pos <- tex14.exprs[tex14.exprs != 0] %>% names()
-tex14.zero <- tex14.exprs[tex14.exprs == 0] %>% names()
-
-new.annotations <- unlist(mapply(function(x, y, z){
-  if (x %in% to.recluster){
-    subset.metadata <- subset(meta.data, meta.data$celltype == x)
+meta.data$seurat_clusters_new <- unlist(mapply(function(x, y){
+  if (x %in% c(4, 6, 9)){
+    subset.metadata <- subset(meta.data, meta.data$seurat_clusters %in% c(x))
     thres <- quantile(subset.metadata$DiffGene_1)
     median.diff.gene <- thres[["50%"]]
     if (y >= median.diff.gene){
-      output <- "cMo/M2"
+      output <- sprintf("%sA", x)
     } else {
-      output <- "cMo/M1"
+      output <- sprintf("%sB", x)
     }
-  } else if (x %in% to.recluster == FALSE && x != "DC2") {
-    output <- convert.celltype[[x]]
-  } else if (x == "DC2"){
-    if (z %in% tex14.pos){
-      output <- "cDC2A"
-    } else {
-      output <- "cDC2B"
-    }
+  } else if (x %in% c(4, 6, 9) == FALSE) {
+    output <- sprintf("%s", x)
   }
   return(output)
-}, meta.data$celltype, meta.data$DiffGene_1, meta.data$barcode))
+}, meta.data$seurat_clusters, meta.data$DiffGene_1 ))
 
-meta.data$new_annotation <- new.annotations
+cluster.convert <- list(
+  `1` = "cMo/cMo_M1",
+  `2` = "cDC1",
+  `3` = "cDC3",
+  `4A` = "cMo/cMo_M1", 
+  `4B` = "iMo_M2",
+  `5` = "pDC precursor",
+  `6A`= "cMo/cMo_M1",
+  `6B` = "iMo_M2",
+  `7` = "cMo/cMo_M1",
+  `8` = "pDC",
+  `9A`= "cMo/cMo_M1", 
+  `9B` = "iMo_M2",
+  `10` = "iMo_M2",
+  `11` = "cDC precursor",
+  `12` = "cDC2",
+  `13`= "cMo/cMo_M1"
+)
+
+meta.data <- meta.data %>% rowwise() %>% 
+  mutate(cluster.name = cluster.convert[[seurat_clusters_new]])
+
 meta.data <- meta.data %>% column_to_rownames("barcode")
+meta.data <- meta.data[row.names(s.obj@meta.data), ]
 
-meta.data <- meta.data[rownames(s.obj@meta.data), ]
-s.obj <- AddMetaData(object = s.obj, metadata = meta.data$new_annotation, col.name = "new_annotation")
-# DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, label.box = TRUE, repel = TRUE, group.by = "new_annotation")
+s.obj <- AddMetaData(object = s.obj, metadata = meta.data$cluster.name, col.name = "new_annotation")
+new.tsne.plot <- DimPlot(object = s.obj, reduction = "INTE_TSNE", label = TRUE, group.by = "new_annotation", label.box =  TRUE)
 
-saveRDS(s.obj, file.path(path.to.04.output, "merge_all_6_samples_test_function.output.s8.newAnnotation_20250129.rds"))
+saveRDS(s.obj, file.path(path.to.04.output, "merge_all_6_samples_test_function.output.s8.newAnnotation.rds"))
+
+# pca_reduction_name <- "PCA_subset"
+# tsne_reduction_name <- "TSNE_subset"
+# my_random_seed <- 42
+# s.obj <- RunPCA(s.obj, 
+#                 npcs = num.PCA, 
+#                 verbose = FALSE, 
+#                 reduction.name=pca_reduction_name,
+#                 features = gene.list)
+# 
+# get.real.PCA.dim <- ncol(s.obj@reductions$PCA_subset@cell.embeddings)
+# s.obj <- RunTSNE(s.obj, reduction = pca_reduction_name, 
+#                  dims = 1:get.real.PCA.dim, reduction.name=tsne_reduction_name,
+#                  seed.use = my_random_seed, check_duplicates = FALSE)
+# 
+# # clustering 
+# s.obj <- FindNeighbors(s.obj, reduction = pca_reduction_name, dims = 1:get.real.PCA.dim)
+# s.obj <- FindClusters(s.obj, resolution = cluster.resolution, random.seed = 0)
+# 
+# DimPlot(object = s.obj, reduction = "TSNE_subset", label = TRUE, label.box = TRUE)
+# 
+# FeaturePlot(object = s.obj, 
+#             features = head(gene.list, 9), 
+#             ncol = 3, 
+#             reduction = "TSNE_subset",
+#             label = TRUE)
